@@ -55,23 +55,43 @@ export default {
         isLoading.value = true;
         error.value = '';
         
+        console.log('Attempting login for user:', username.value);
+        
+        // Call the login API
         const response = await authAPI.login({
           username: username.value,
           password: password.value
         });
-
-        if (response.data.token) {
-          // Verify auth state
-          const isAuthenticated = await authAPI.checkAuth();
-          if (isAuthenticated) {
-            router.push('/dashboard');
-          } else {
-            throw new Error('Authentication failed');
-          }
+        
+        console.log('Login API response:', response.data);
+        
+        // Direct check for token in response
+        if (!response.data.token) {
+          console.error('No token in login response');
+          throw new Error('No authentication token received from server');
+        }
+        
+        // Auth check is redundant since login already sets the token,
+        // but we'll do it anyway to ensure everything is working
+        const isAuthenticated = await authAPI.checkAuth();
+        
+        if (isAuthenticated) {
+          console.log('Successfully authenticated, redirecting to dashboard');
+          router.push('/dashboard');
+        } else {
+          console.error('Authentication check failed after login');
+          throw new Error('Authentication verification failed');
         }
       } catch (err) {
         console.error('Login error:', err);
-        error.value = err.response?.data?.error || 'Failed to login';
+        // Try to extract a user-friendly error message
+        if (err.response?.data?.error) {
+          error.value = err.response.data.error;
+        } else if (err.message) {
+          error.value = err.message;
+        } else {
+          error.value = 'Failed to login. Please try again.';
+        }
       } finally {
         isLoading.value = false;
       }

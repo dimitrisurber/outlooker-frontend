@@ -15,9 +15,24 @@ const api = axios.create({
 // Add token to requests if it exists
 api.interceptors.request.use(
   config => {
-    const token = localStorage.getItem('token');
+    // Look for token with both possible key names
+    let token = localStorage.getItem('token');
+    
+    if (!token) {
+      // Try alternate token key as fallback
+      token = localStorage.getItem('auth_token');
+      // If found with alternate key, migrate it
+      if (token) {
+        console.log('Found token with alternate key, migrating to standard key');
+        localStorage.setItem('token', token);
+      }
+    }
+    
     if (token) {
+      console.log(`Adding token to request: ${config.url}`);
       config.headers['Authorization'] = `Bearer ${token}`;
+    } else {
+      console.log(`No token available for request: ${config.url}`);
     }
     return config;
   },
@@ -58,19 +73,40 @@ api.interceptors.response.use(
 
 export const authAPI = {
   login: async (credentials) => {
-    const response = await api.post('/auth/login', credentials);
-    const { token, user } = response.data;
-    
-    if (!token) throw new Error('No token received');
-    
-    // Store auth data
-    localStorage.setItem('token', token);
-    localStorage.setItem('user', JSON.stringify(user));
-    
-    // Set auth header
-    api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-    
-    return response;
+    try {
+      console.log('Sending login request');
+      const response = await api.post('/auth/login', credentials);
+      console.log('Login response received:', response.data);
+      
+      // Check if we have a successful response with token
+      if (!response.data.success) {
+        throw new Error('Login failed: ' + (response.data.error || 'Unknown error'));
+      }
+      
+      // Extract token and user from response
+      const { token, user } = response.data;
+      
+      // Check if token exists
+      if (!token) {
+        console.error('Login response missing token!', response.data);
+        throw new Error('No token received in login response');
+      }
+      
+      console.log('Token received successfully, storing in localStorage');
+      console.log('User data:', user);
+      
+      // Store auth data
+      localStorage.setItem('token', token);
+      localStorage.setItem('user', JSON.stringify(user));
+      
+      // Set auth header for future requests
+      api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      
+      return response;
+    } catch (error) {
+      console.error('Login error:', error);
+      throw error;
+    }
   },
 
   logout: async () => {
@@ -86,25 +122,57 @@ export const authAPI = {
   checkAuth: async () => {
     try {
       const token = localStorage.getItem('token');
-      if (!token) return false;
+      if (!token) {
+        console.log('No token found in localStorage');
+        return false;
+      }
 
+      console.log('Checking auth with token');
+      
       // Set token in header before verification
       api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
       
       const response = await api.get('/auth/verify');
       console.log('Auth check response:', response.data);
       
-      // Update stored user data if we got new details from the server
-      if (response.data.valid && response.data.user) {
-        const existingUser = JSON.parse(localStorage.getItem('user') || '{}');
-        // Update with fresh data from server, which would include role
-        localStorage.setItem('user', JSON.stringify({
-          ...existingUser,
-          ...response.data.user
-        }));
+      // Handle different response formats
+      let isAuthenticated = false;
+      
+      if (response.data.success) {
+        isAuthenticated = true;
+        
+        // Extract user from response
+        const responseUser = response.data.user;
+        
+        if (responseUser) {
+          const existingUser = JSON.parse(localStorage.getItem('user') || '{}');
+          // Update with fresh data from server
+          localStorage.setItem('user', JSON.stringify({
+            ...existingUser,
+            ...responseUser
+          }));
+        }
+      } else if (response.data.valid) {
+        isAuthenticated = true;
+        
+        // Handle older API format
+        if (response.data.user) {
+          const existingUser = JSON.parse(localStorage.getItem('user') || '{}');
+          localStorage.setItem('user', JSON.stringify({
+            ...existingUser,
+            ...response.data.user
+          }));
+        }
       }
       
-      return response.data.valid;
+      if (!isAuthenticated) {
+        console.log('Auth check failed despite 200 response');
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        delete api.defaults.headers.common['Authorization'];
+      }
+      
+      return isAuthenticated;
     } catch (error) {
       console.error('Auth check failed:', error);
       localStorage.removeItem('token');
