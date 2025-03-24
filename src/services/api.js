@@ -94,6 +94,16 @@ export const authAPI = {
       const response = await api.get('/auth/verify');
       console.log('Auth check response:', response.data);
       
+      // Update stored user data if we got new details from the server
+      if (response.data.valid && response.data.user) {
+        const existingUser = JSON.parse(localStorage.getItem('user') || '{}');
+        // Update with fresh data from server, which would include role
+        localStorage.setItem('user', JSON.stringify({
+          ...existingUser,
+          ...response.data.user
+        }));
+      }
+      
       return response.data.valid;
     } catch (error) {
       console.error('Auth check failed:', error);
@@ -101,6 +111,47 @@ export const authAPI = {
       localStorage.removeItem('user');
       delete api.defaults.headers.common['Authorization'];
       return false;
+    }
+  },
+
+  // User management endpoints
+  registerUser: async (userData) => {
+    try {
+      const response = await api.post('/auth/register', userData);
+      return response.data;
+    } catch (error) {
+      console.error('User registration error:', error);
+      throw error;
+    }
+  },
+
+  getUsers: async () => {
+    try {
+      const response = await api.get('/auth/users');
+      return response.data;
+    } catch (error) {
+      console.error('Get users error:', error);
+      throw error;
+    }
+  },
+
+  deleteUser: async (userId) => {
+    try {
+      const response = await api.delete(`/auth/users/${userId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Delete user error:', error);
+      throw error;
+    }
+  },
+
+  updateUser: async (userId, userData) => {
+    try {
+      const response = await api.put(`/auth/users/${userId}`, userData);
+      return response.data;
+    } catch (error) {
+      console.error('Update user error:', error);
+      throw error;
     }
   }
 };

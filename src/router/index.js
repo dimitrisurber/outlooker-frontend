@@ -20,6 +20,12 @@ const routes = [
     meta: { requiresAuth: true }
   },
   {
+    path: '/users',
+    name: 'UserManagement',
+    component: () => import('@/views/UserManagement.vue'),
+    meta: { requiresAuth: true, requiresAdmin: true }
+  },
+  {
     path: '/book/:userId',
     name: 'BookingWidget',
     component: BookingWidget,
@@ -90,7 +96,18 @@ router.beforeEach(async (to, from, next) => {
         query: { redirect: to.fullPath }
       })
     } else {
-      next()
+      // Check if route requires admin role
+      if (to.matched.some(record => record.meta.requiresAdmin)) {
+        const user = JSON.parse(localStorage.getItem('user'));
+        if (user && user.role === 'admin') {
+          next();
+        } else {
+          // Not an admin, redirect to dashboard
+          next('/dashboard');
+        }
+      } else {
+        next();
+      }
     }
   } else if (to.path === '/login') {
     // Check if already authenticated for login page

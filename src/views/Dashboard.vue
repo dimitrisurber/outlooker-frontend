@@ -10,6 +10,14 @@
         >
           Home
         </router-link>
+        <router-link 
+          v-if="isAdmin"
+          to="/users" 
+          class="nav-link"
+          active-class="active"
+        >
+          User Management
+        </router-link>
       </nav>
       <base-button 
         variant="danger" 
@@ -197,6 +205,7 @@ export default {
     const isGeneratingLink = ref(true);
     const isGoogleCalendarAvailable = ref(true);
     const isCheckingApiStatus = ref(false);
+    const isAdmin = ref(false);
 
     const checkCalendarConnection = async () => {
       try {
@@ -515,6 +524,10 @@ export default {
     };
 
     onMounted(async () => {
+      // Set admin status
+      const user = JSON.parse(localStorage.getItem('user'));
+      isAdmin.value = user && user.role === 'admin';
+
       // Check for connection status from URL params
       if (route.query.connected === 'true') {
         isCalendarConnected.value = true;
@@ -535,6 +548,7 @@ export default {
     });
 
     return {
+      isAdmin,
       isCalendarConnected,
       isLoading,
       error,
