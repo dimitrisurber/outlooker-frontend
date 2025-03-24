@@ -5,7 +5,7 @@ import axios from 'axios'
 import components from './plugins/components'
 
 // Set up axios defaults
-axios.defaults.baseURL = process.env.VUE_APP_API_URL || 'http://localhost:3000'
+axios.defaults.baseURL = process.env.VUE_APP_API_URL
 
 // Configure Swiss timezone
 try {
