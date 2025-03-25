@@ -482,7 +482,21 @@ export const calendarAPI = {
   
   createBooking: async (bookingData) => {
     try {
-      const response = await api.post('/bookings', bookingData);
+      // Only check for token if reCAPTCHA is enabled
+      const recaptchaEnabled = process.env.VUE_APP_RECAPTCHA_ENABLED !== 'false';
+      
+      if (recaptchaEnabled && bookingData.recaptchaToken) {
+        // Make sure token is valid
+        if (!bookingData.recaptchaToken || typeof bookingData.recaptchaToken !== 'string' || 
+            bookingData.recaptchaToken.trim() === '') {
+          // Remove invalid token
+          delete bookingData.recaptchaToken;
+          console.log('Removed invalid recaptchaToken from booking request');
+        }
+      }
+      
+      // Use the correct endpoint path
+      const response = await api.post('/calendar/bookings', bookingData);
       return response.data;
     } catch (error) {
       console.error('createBooking error:', error);
@@ -508,7 +522,23 @@ export const calendarAPI = {
 export const bookingAPI = {
   getServices: () => api.get('/calendar/services'),
   getAvailability: (date) => api.get('/calendar/availability', { params: { date } }),
-  createBooking: (bookingData) => api.post('/bookings', bookingData),
+  createBooking: (bookingData) => {
+    // Only check for token if reCAPTCHA is enabled
+    const recaptchaEnabled = process.env.VUE_APP_RECAPTCHA_ENABLED !== 'false';
+    
+    if (recaptchaEnabled && bookingData.recaptchaToken) {
+      // Make sure token is valid
+      if (!bookingData.recaptchaToken || typeof bookingData.recaptchaToken !== 'string' || 
+          bookingData.recaptchaToken.trim() === '') {
+        // Remove invalid token
+        delete bookingData.recaptchaToken;
+        console.log('Removed invalid recaptchaToken from booking request');
+      }
+    }
+    
+    // Use the correct endpoint path
+    return api.post('/calendar/bookings', bookingData);
+  },
   getBookingLink: (userId) => api.get(`/bookings/link/${userId}`)
 };
 

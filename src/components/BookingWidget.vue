@@ -368,12 +368,26 @@ export default {
         isLoading.value = true;
         errorMessage.value = '';
         
+        // First check if calendar is connected
+        try {
+          const isConnected = await calendarAPI.checkConnectionStatus(userId);
+          if (!isConnected) {
+            console.warn('User has not connected their calendar');
+            errorMessage.value = 'Calendar is not connected. Please connect your Google Calendar first.';
+            isLoading.value = false;
+            return;
+          }
+        } catch (connectionError) {
+          console.error('Error checking calendar connection:', connectionError);
+          // Continue anyway, as we'll get a more specific error if needed
+        }
+        
         // First, debug schedules to see what we're working with
         try {
           const scheduleResult = await calendarAPI.debugSchedules(userId);
           console.log('DEBUG - User schedules:', scheduleResult);
           
-          if (scheduleResult.schedules.length === 0) {
+          if (!scheduleResult.schedules || scheduleResult.schedules.length === 0) {
             console.warn('WARNING: User has no schedules defined!');
             errorMessage.value = 'No schedules defined. Please set up your available times first.';
             isLoading.value = false;
@@ -381,7 +395,21 @@ export default {
           }
         } catch (debugError) {
           console.error('Failed to debug schedules:', debugError);
-          // Continue anyway, this is just for debugging
+          // Try regular schedules endpoint as fallback
+          try {
+            const schedules = await calendarAPI.getSchedules(userId);
+            console.log('Regular schedules check:', schedules);
+            
+            if (!schedules || schedules.length === 0) {
+              console.warn('WARNING: User has no schedules defined (regular check)');
+              errorMessage.value = 'No schedules defined. Please set up your available times first.';
+              isLoading.value = false;
+              return;
+            }
+          } catch (schedulesError) {
+            console.error('Failed to fetch schedules:', schedulesError);
+            // Continue anyway, as the next API might still work
+          }
         }
         
         // Get all slots for the next two weeks
@@ -420,6 +448,10 @@ export default {
             // Network connectivity issues
             console.error('Network issues:', error.response.data?.error);
             errorMessage.value = error.response.data?.error || 'Network connectivity issues';
+          } else if (error.response.status === 404) {
+            // Endpoint not found (likely API changes)
+            console.error('API endpoint not found:', error.response.data?.error);
+            errorMessage.value = 'This feature is not available. The server API has changed.';
           } else {
             errorMessage.value = error.response.data?.error || 'Failed to fetch available slots';
           }

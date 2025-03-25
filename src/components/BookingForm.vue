@@ -220,19 +220,50 @@ export default {
     // Load reCAPTCHA v3
     const loadRecaptchaScript = () => {
       return new Promise((resolve, reject) => {
+        // Check if already loaded
+        if (window.grecaptcha) {
+          console.log('reCAPTCHA already loaded');
+          return resolve(window.grecaptcha);
+        }
+        
+        // Check if reCAPTCHA is enabled in environment config
+        const recaptchaEnabled = process.env.VUE_APP_RECAPTCHA_ENABLED !== 'false';
+        if (!recaptchaEnabled) {
+          console.log('reCAPTCHA is disabled by configuration');
+          return resolve(null);
+        }
+        
+        // Use environment variable for site key
+        const siteKey = process.env.VUE_APP_RECAPTCHA_SITE_KEY;
+        if (!siteKey) {
+          console.error('reCAPTCHA site key not configured');
+          return reject(new Error('reCAPTCHA site key missing'));
+        }
+        
+        console.log('Loading reCAPTCHA with site key:', siteKey);
+        
         const script = document.createElement('script');
-        script.src = 'https://www.google.com/recaptcha/api.js?render=6LdNrvwqAAAAAKxVDZG9t4sQ1nb9xCP4w_Lci-6p';
+        script.src = `https://www.google.com/recaptcha/api.js?render=${siteKey}`;
         script.async = true;
         script.defer = true;
         
-        script.onload = resolve;
-        script.onerror = reject;
+        script.onload = () => {
+          console.log('reCAPTCHA script loaded successfully');
+          // Ensure grecaptcha is ready
+          window.grecaptcha.ready(() => {
+            console.log('reCAPTCHA is ready');
+            resolve(window.grecaptcha);
+          });
+        };
+        
+        script.onerror = (error) => {
+          console.error('Error loading reCAPTCHA script:', error);
+          reject(new Error('Failed to load reCAPTCHA script'));
+        };
         
         document.head.appendChild(script);
       });
     };
-
-    
 
     // Submit booking
     const submitBooking = async () => {
@@ -247,33 +278,102 @@ export default {
       recaptchaError.value = false;
       
       try {
-        // Get reCAPTCHA token
+        // Check if reCAPTCHA is enabled in environment config
+        const recaptchaEnabled = process.env.VUE_APP_RECAPTCHA_ENABLED !== 'false';
+        
+        // Get reCAPTCHA token if enabled
         let recaptchaToken = '';
-        try {
-          if (window.grecaptcha) {
-            recaptchaToken = await window.grecaptcha.execute(process.env.VUE_APP_RECAPTCHA_SITE_KEY, {action: 'submit'});
+        
+        if (recaptchaEnabled) {
+          try {
+            // Try to load reCAPTCHA if not already loaded
+            if (!window.grecaptcha) {
+              console.log('reCAPTCHA not loaded, trying to load it now');
+              await loadRecaptchaScript();
+            }
+            
+            if (window.grecaptcha) {
+              console.log('Executing reCAPTCHA to get token');
+              const siteKey = process.env.VUE_APP_RECAPTCHA_SITE_KEY;
+              
+              if (!siteKey) {
+                console.error('reCAPTCHA site key not configured');
+                throw new Error('reCAPTCHA configuration error');
+              }
+              
+              // Make sure grecaptcha is ready
+              await new Promise(resolve => {
+                if (window.grecaptcha.ready) {
+                  window.grecaptcha.ready(resolve);
+                } else {
+                  resolve(); // If no ready function, continue anyway
+                }
+              });
+              
+              // Execute reCAPTCHA
+              recaptchaToken = await window.grecaptcha.execute(siteKey, {action: 'submit'});
+              console.log('Got reCAPTCHA token:', recaptchaToken.substring(0, 10) + '...');
+              
+              if (!recaptchaToken || recaptchaToken.trim() === '') {
+                throw new Error('Empty reCAPTCHA token received');
+              }
+            } else {
+              throw new Error('reCAPTCHA not available');
+            }
+          } catch (recaptchaError) {
+            console.error('reCAPTCHA error:', recaptchaError);
+            
+            // In development, continue without token
+            if (process.env.NODE_ENV === 'development') {
+              console.warn('Development mode: continuing without reCAPTCHA token');
+            } else {
+              // In production, show error and stop
+              recaptchaError.value = true;
+              throw new Error('Sicherheitsüberprüfung fehlgeschlagen. Bitte versuchen Sie es erneut oder aktivieren Sie JavaScript.');
+            }
           }
-        } catch (recaptchaError) {
-          console.error('reCAPTCHA error:', recaptchaError);
-          // Continue without token in development
-          if (process.env.NODE_ENV !== 'development') {
-            throw new Error('Sicherheitsüberprüfung fehlgeschlagen');
+        } else {
+          console.log('reCAPTCHA is disabled by configuration, continuing without token');
+        }
+        
+        // Ensure appointmentDate is a proper Date object
+        let formattedDate;
+        if (appointmentDate.value) {
+          const dateObj = (appointmentDate.value instanceof Date) 
+            ? appointmentDate.value 
+            : new Date(appointmentDate.value);
+          
+          if (isNaN(dateObj.getTime())) {
+            console.error('Invalid date format:', appointmentDate.value);
+            throw new Error('Ungültiges Datumsformat. Bitte wählen Sie ein gültiges Datum.');
           }
+          
+          formattedDate = dateObj.toISOString();
+          console.log('Formatted appointment date:', formattedDate);
+        } else {
+          console.error('Missing appointment date');
+          throw new Error('Bitte wählen Sie ein Datum für Ihren Termin.');
         }
         
         // Prepare booking data
         const bookingData = {
           userId: route.params.userId,
-          appointmentDate: appointmentDate.value,
+          appointmentDate: formattedDate,
           appointmentTime: appointmentTime.value,
           customerDetails: {
             name: form.value.name,
             phone: form.value.phone,
             carManufacturer: form.value.manufacturer,
             carYear: form.value.year
-          },
-          recaptchaToken
+          }
         };
+        
+        // Only add recaptchaToken if we actually have one
+        if (recaptchaToken && recaptchaToken.trim() !== '') {
+          bookingData.recaptchaToken = recaptchaToken;
+        }
+        
+        console.log('Submitting booking with data:', {...bookingData, recaptchaToken: recaptchaToken ? 'Present (hidden)' : 'Missing'});
         
         // Submit booking to API
         const response = await calendarAPI.createBooking(bookingData);
@@ -285,7 +385,7 @@ export default {
           path: '/booking-confirmation',
           query: {
             name: form.value.name,
-            date: appointmentDate.value.toISOString(),
+            date: formattedDate,
             time: appointmentTime.value,
             manufacturer: form.value.manufacturer,
             year: form.value.year,
