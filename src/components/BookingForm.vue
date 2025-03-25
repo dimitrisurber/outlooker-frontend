@@ -409,10 +409,29 @@ export default {
     };
 
     // Format date for display
-    const formatDate = (dateString) => {
-      if (!dateString) return '';
-      const date = new Date(dateString);
-      return format(date, 'EEEE, d. MMMM yyyy', { locale: de });
+    const formatDate = (dateValue) => {
+      if (!dateValue) return '';
+      
+      let date;
+      if (dateValue instanceof Date) {
+        date = dateValue;
+      } else {
+        // Try to parse the date string
+        date = new Date(dateValue);
+        
+        // Check if date is valid
+        if (isNaN(date.getTime())) {
+          console.error('Invalid date in formatDate:', dateValue);
+          return dateValue.toString(); // Return the original string if parsing fails
+        }
+      }
+      
+      try {
+        return format(date, 'EEEE, d. MMMM yyyy', { locale: de });
+      } catch (error) {
+        console.error('Error formatting date:', error);
+        return dateValue.toString();
+      }
     };
 
     // Format time for display
@@ -423,7 +442,26 @@ export default {
 
     onMounted(() => {
       // Load appointment details from route query parameters
-      appointmentDate.value = route.query.date;
+      const dateParam = route.query.date;
+      if (dateParam) {
+        try {
+          // Try to parse the date string to a proper Date object
+          const dateObj = new Date(dateParam);
+          if (!isNaN(dateObj.getTime())) {
+            appointmentDate.value = dateObj;
+            console.log('Appointment date set as Date object:', appointmentDate.value);
+          } else {
+            console.error('Invalid date from URL:', dateParam);
+            appointmentDate.value = dateParam; // Keep the string version as fallback
+          }
+        } catch (error) {
+          console.error('Error parsing date from URL:', error);
+          appointmentDate.value = dateParam; // Keep the string version as fallback
+        }
+      } else {
+        console.warn('No date parameter found in URL');
+      }
+      
       appointmentTime.value = route.query.time;
       
       // Load reCAPTCHA

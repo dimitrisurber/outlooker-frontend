@@ -13,7 +13,6 @@
           <tr>
             <th>Date</th>
             <th>Time</th>
-            <th>Action</th>
           </tr>
         </thead>
         <tbody>
@@ -22,14 +21,8 @@
               class="slot-row">
             <td>{{ formatDate(slot.date) }}</td>
             <td>{{ formatTime(slot.time) }}</td>
-            <td>
-              <button 
-                @click="bookSlot(slot)"
-                class="book-button"
-              >
-                Book
-              </button>
-            </td>
+            
+
           </tr>
           <tr v-if="availableSlots.length === 0">
             <td colspan="3" class="no-slots">
