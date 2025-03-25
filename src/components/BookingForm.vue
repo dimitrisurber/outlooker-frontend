@@ -62,7 +62,7 @@
         </div>
         
         <div class="form-group">
-          <label for="year">Jahr</label>
+          <label for="year">Baujahr</label>
           <div class="select-wrapper">
             <v-select
               id="year"
@@ -85,14 +85,10 @@
       </div>
 
       <div class="form-notes">
-        <span class="qodef-short-note">
-          Bitte beachten Sie das wir so gut wie möglich ihre Terminwünsche beachten, aber
-          nichts garantieren können
+        <span class="">
+          Wir geben unser Bestes, Ihre Terminwünsche zu berücksichtigen – aber manchmal kommt einfach etwas dazwischen. Bitte haben Sie Verständnis, dass wir nichts garantieren können.
         </span>
         <br>
-        <span class="qodef-short-note">
-          Wir werden Sie kontaktieren so schnell wie möglich
-        </span>
       </div>
 
       <div class="form-submit">
@@ -437,7 +433,23 @@ export default {
     // Format time for display
     const formatTime = (timeString) => {
       if (!timeString) return '';
-      return timeString;
+      
+      let startTime;
+      // Handle ISO string format (2025-03-25T16:30)
+      if (timeString.includes('T')) {
+        startTime = timeString.split('T')[1];
+      } else {
+        startTime = timeString;
+      }
+      
+      // Calculate end time (30 minutes after start)
+      const [hours, minutes] = startTime.split(':').map(Number);
+      const endDate = new Date();
+      endDate.setHours(hours);
+      endDate.setMinutes(minutes + 30);
+      const endTime = `${String(endDate.getHours()).padStart(2, '0')}:${String(endDate.getMinutes()).padStart(2, '0')}`;
+      
+      return `${startTime} - ${endTime}`;
     };
 
     onMounted(() => {

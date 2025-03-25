@@ -51,8 +51,9 @@
         <div v-else class="calendar-connected">
           <div class="success-message">
             <span class="checkmark">✓</span>
-            Calendar Connected
+            Connected account: {{ calendarEmail }}
           </div>
+
           <div v-if="!isGoogleCalendarAvailable" class="api-warning">
             <p>⚠️ Google Calendar API is currently unavailable.</p>
             <base-button 
@@ -206,38 +207,9 @@ export default {
     const isGoogleCalendarAvailable = ref(true);
     const isCheckingApiStatus = ref(false);
     const isAdmin = ref(false);
-
-    const checkCalendarConnection = async () => {
-      try {
-        isLoading.value = true;
-        error.value = '';
-        
-        const user = JSON.parse(localStorage.getItem('user'));
-        if (!user || !user.id) {
-          throw new Error('User not found');
-        }
-        
-        console.log('Checking calendar connection for user:', user.id);
-        const isConnected = await calendarAPI.checkConnectionStatus(user.id);
-        isCalendarConnected.value = isConnected;
-        
-        console.log('Calendar connection status:', isConnected);
-      } catch (err) {
-        console.error('Calendar connection check failed:', err);
-        isCalendarConnected.value = false;
-        
-        // Set specific error message for network issues
-        if (err.message.includes('Network Error') || 
-            err.message.includes('timeout') ||
-            err.code === 'ECONNABORTED') {
-          error.value = 'Network connectivity issues. Unable to connect to Google Calendar.';
-        } else {
-          error.value = err.message || 'Failed to check calendar connection';
-        }
-      } finally {
-        isLoading.value = false;
-      }
-    };
+    const loading = ref(false);
+    const isConnected = ref(false);
+    const calendarEmail = ref('');
 
     const connectCalendar = async () => {
       try {
@@ -523,6 +495,40 @@ export default {
       }
     };
 
+    const checkCalendarStatus = async () => {
+      isLoading.value = true;
+      error.value = '';
+      try {
+        const user = JSON.parse(localStorage.getItem('user'));
+        if (!user || !user.id) {
+          throw new Error('User not found');
+        }
+        
+        isCalendarConnected.value = await calendarAPI.checkConnectionStatus(user.id);
+        
+        if (isCalendarConnected.value) {
+          try {
+            const calendarInfo = await calendarAPI.getCalendarInfo(user.id);
+            if (calendarInfo && calendarInfo.email) {
+              calendarEmail.value = calendarInfo.email;
+            } else {
+              console.error('Calendar info missing email:', calendarInfo);
+              error.value = 'Could not retrieve calendar email';
+            }
+          } catch (infoError) {
+            console.error('Failed to get calendar info:', infoError);
+            error.value = 'Could not retrieve calendar information';
+          }
+        }
+      } catch (err) {
+        console.error('Failed to check calendar connection:', err);
+        error.value = err.message;
+        isCalendarConnected.value = false;
+      } finally {
+        isLoading.value = false;
+      }
+    };
+
     onMounted(async () => {
       // Set admin status
       const user = JSON.parse(localStorage.getItem('user'));
@@ -535,8 +541,8 @@ export default {
         error.value = decodeURIComponent(route.query.error);
       }
 
-      // Verify connection status with backend
-      await checkCalendarConnection();
+      // Verify connection status and get calendar info
+      await checkCalendarStatus();
 
       if (isCalendarConnected.value) {
         await fetchSchedules();
@@ -568,7 +574,11 @@ export default {
       isGeneratingLink,
       isGoogleCalendarAvailable,
       isCheckingApiStatus,
-      checkGoogleCalendarStatus
+      checkGoogleCalendarStatus,
+      loading,
+      isConnected,
+      calendarEmail,
+      checkCalendarStatus
     };
   }
 };
@@ -827,5 +837,16 @@ export default {
 
 .refresh-button:hover {
   background-color: #e6a800;
+}
+
+.calendar-info {
+  margin: 10px 0;
+  color: #666;
+  font-size: 0.9em;
+}
+
+.calendar-email {
+  margin: 0;
+  padding: 5px 0;
 }
 </style> 

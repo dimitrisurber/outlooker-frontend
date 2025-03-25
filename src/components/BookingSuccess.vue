@@ -25,8 +25,7 @@
         </div>
       </div>
       <p class="follow-up">
-        Wir haben Ihren Termin erfolgreich in unserem System eingetragen. 
-        Eine Bestätigung wurde an Ihr Gerät gesendet.
+        Wir haben Ihren Termin erfolgreich in unserem System eingetragen. Sie erhalten keine Bestätigung per E-Mail.
       </p>
       
       <!-- Calendar Integration Options -->
@@ -56,7 +55,7 @@
                 <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" fill="currentColor"/>
               </svg>
             </div>
-            <span>ICS Datei downloaden</span>
+            <span>Kalendereintrag herunterladen</span>
           </a>
         </div>
       </div>

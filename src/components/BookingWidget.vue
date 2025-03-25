@@ -5,8 +5,8 @@
       <h1>Verfügbare Termine</h1>
     </div>
 
-    <!-- Admin Actions (only in development) -->
-    <div class="admin-actions" v-if="showAdminActions">
+    <!-- Admin Actions -->
+    <div class="admin-actions" v-if="isAdmin">
       <button @click="resetUserSchedules" class="admin-button">
         Reset Test Schedules
       </button>
@@ -151,15 +151,6 @@
       <p>{{ formatTime(selectedTime) }} - {{ formatDate(selectedDate) }}</p>
     </div>
 
-    <!-- Proceed Button -->
-    <button 
-      class="proceed-button"
-      :disabled="!selectedTime"
-      @click="proceed"
-    >
-      Proceed Next
-    </button>
-
     <!-- Debug Information for Selected Date -->
     <div class="mt-4" v-if="showDebugInfo && selectedDate && selectedDateDebugInfo">
       <div class="border border-gray-300 rounded p-3 bg-gray-50">
@@ -243,7 +234,7 @@
 
 <script>
 import { ref, onMounted, computed } from 'vue';
-import { format, addDays} from 'date-fns';
+import { format, addDays } from 'date-fns';
 import { calendarAPI } from '@/services/api';
 import { useRoute, useRouter } from 'vue-router';
 
@@ -256,6 +247,12 @@ export default {
     const selectedTime = ref(null);
     const availableSlots = ref([]);
     const showDebugInfo = ref(false);
+    
+    // Check admin status directly from localStorage
+    const isAdmin = computed(() => {
+      const user = JSON.parse(localStorage.getItem('user'));
+      return user && user.role === 'admin';
+    });
     
     // Swiss timezone
     const SWISS_TIMEZONE = 'Europe/Zurich';
@@ -298,8 +295,8 @@ export default {
       return format(swissDate, 'd MMM, yyyy');
     };
 
-    // Format time using Swiss timezone
-    const formatSwissTime = (time) => {
+    // Format a time string to 24-hour format
+    const formatTime = (time) => {
       if (!time) return '';
       
       let hours, minutes;
@@ -317,19 +314,15 @@ export default {
       date.setHours(parseInt(hours));
       date.setMinutes(parseInt(minutes));
       
-      // Convert to Swiss timezone
+      // Convert to Swiss timezone and format in 24-hour format
       const swissDate = toSwissTime(date);
-      return format(swissDate, 'h:mm a');
+      return format(swissDate, 'HH:mm');
     };
-
 
     // Define a state to store all days with their slots
     const allDaysWithSlots = ref([]);
     const isLoading = ref(true);
     const errorMessage = ref('');
-    
-    // Show admin actions in development
-    const showAdminActions = ref(process.env.NODE_ENV === 'development' || true);
     
     // Reset user schedules and create proper test schedules
     const resetUserSchedules = async () => {
@@ -706,10 +699,6 @@ export default {
       return formatSwissDate(date);
     };
 
-    const formatTime = (time) => {
-      return formatSwissTime(time);
-    };
-
     const germanWeekdays = {
       'Mon': 'Montag',
       'Tue': 'Dienstag',
@@ -847,59 +836,15 @@ export default {
       return !dayData || !dayData.slots || dayData.slots.length === 0;
     });
 
-    const formatLocalDate = (date) => {
-      if (!date) return '';
-      return new Date(date).toLocaleDateString(undefined, { 
-        weekday: 'long',
-        year: 'numeric', 
-        month: 'long', 
-        day: 'numeric' 
-      });
-    };
-
-    const hasAppointmentConflict = (slot, bookedAppointments) => {
-      const slotTime = slot.time;
-      return bookedAppointments.some(appt => {
-        // Return true if appointment start time matches the slot time
-        return appt.swissStartTime === slotTime;
-      });
-    };
-
-    // Check if a slot conflicts with any booked appointment
-    const checkAppointmentConflict = (slot) => {
-      if (!selectedDateDebugInfo.value?.bookedAppointments) return false;
-      
-      // Check if any booked appointment starts at this slot time
-      return selectedDateDebugInfo.value.bookedAppointments.some(appt => {
-        // Compare the slot's display time with the appointment's start time
-        const apptStartTime = appt.swissStartTime;
-        const slotTime = slot.timeDisplay;
-        
-        console.log(`Comparing slot ${slotTime} with appointment at ${apptStartTime}`);
-        return apptStartTime === slotTime;
-      });
-    };
-
-    // Filter days with available slots
+    // Add computed property for days with available slots
     const daysWithAvailableSlots = computed(() => {
-      const result = [];
+      if (!allDaysWithSlots.value) return [];
       
-      // Check each of the next 14 days
-      for (let i = 0; i < 14; i++) {
-        const date = getDate(i);
-        const slots = getDaySlots(date);
-        
-        // Only include days with at least one available slot
-        if (slots.length > 0) {
-          result.push({
-            index: i,
-            date,
-            slots
-          });
-        }
-      }
-      
-      return result;
+      return allDaysWithSlots.value.map(day => ({
+        ...day,
+        date: new Date(day.date), // Convert date string to Date object
+        slots: day.slots || [] // Ensure slots is always an array
+      })).filter(day => day.slots.length > 0); // Only include days with slots
     });
 
     return {
@@ -918,7 +863,6 @@ export default {
       errorMessage,
       fetchAllAvailableSlots,
       allDaysWithSlots,
-      showAdminActions,
       resetUserSchedules,
       showDebugInfo,
       getDayDebugInfo,
@@ -927,9 +871,7 @@ export default {
       inspectRawData,
       selectedDateDebugInfo,
       noSlotsForSelectedDate,
-      formatLocalDate,
-      hasAppointmentConflict,
-      checkAppointmentConflict,
+      isAdmin,
       daysWithAvailableSlots
     };
   }

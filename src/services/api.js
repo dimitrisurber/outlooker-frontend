@@ -387,6 +387,23 @@ export const calendarAPI = {
     }
   },
   
+  getCalendarInfo: async (userId) => {
+    if (!userId) {
+      throw new Error('userId is required to get calendar info');
+    }
+    try {
+      console.log('Fetching calendar info for user:', userId);
+      const response = await api.get('/calendar/info', {
+        params: { userId }
+      });
+      console.log('Calendar info response:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('Get calendar info failed:', error);
+      throw error;
+    }
+  },
+  
   getAuthUrl: () => {
     const token = localStorage.getItem('token');
     if (!token) {
