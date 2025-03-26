@@ -45,6 +45,20 @@
 
       <div class="form-row qodef-col-2">
         <div class="form-group">
+          <label for="email">Email</label>
+          <input 
+            type="email" 
+            id="email" 
+            v-model="form.email" 
+            class="wpcf7-form-control wpcf7-text"
+            placeholder="beispiel@email.com"
+          >
+          <div class="helper-text">
+            Wenn Sie eine Email angeben senden wir Ihnen eine Termineinladung
+          </div>
+        </div>
+        
+        <div class="form-group">
           <label for="manufacturer">Hersteller</label>
           <div class="select-wrapper">
             <v-select
@@ -60,7 +74,9 @@
             ></v-select>
           </div>
         </div>
-        
+      </div>
+
+      <div class="form-row qodef-col-2">
         <div class="form-group">
           <label for="year">Baujahr</label>
           <div class="select-wrapper">
@@ -77,6 +93,11 @@
             ></v-select>
           </div>
         </div>
+      </div>
+
+      <div class="service-details" :class="{ 'error': !form.service }">
+        <p v-if="form.service"><strong>Service:</strong> {{ form.service }}</p>
+        <p v-else class="error-message">Service wurde nicht ausgewählt. Bitte gehen Sie zurück und wählen Sie einen Service.</p>
       </div>
 
       <!-- reCAPTCHA v3 badge will appear at the bottom right of the page -->
@@ -146,8 +167,10 @@ export default {
     const form = ref({
       name: '',
       phone: '',
+      email: '',
       manufacturer: '',
       year: '',
+      service: route.query.service || '',
       date: '',
       time: '',
       userId: route.params.userId,
@@ -363,8 +386,10 @@ export default {
           customerDetails: {
             name: form.value.name,
             phone: form.value.phone,
+            email: form.value.email,
             carManufacturer: form.value.manufacturer,
-            carYear: form.value.year
+            carYear: form.value.year,
+            service: form.value.service
           },
           duration: form.value.duration
         };
@@ -391,6 +416,7 @@ export default {
             manufacturer: form.value.manufacturer,
             year: form.value.year,
             phone: form.value.phone,
+            email: form.value.email,
             // Include additional information needed for calendar integration
             description: `Reifen wechseln bei Garage Wertli\nPhone: ${form.value.phone}\nCar: ${form.value.manufacturer} (${form.value.year})`,
             location: 'Neunbrunnenstrasse 255, 8046 Zürich'
@@ -483,6 +509,8 @@ export default {
       }
       
       appointmentTime.value = route.query.time;
+      form.value.service = route.query.service || '';
+      console.log('Service from URL:', route.query.service);
       
       // Load reCAPTCHA
       loadRecaptchaScript().catch(error => {
@@ -620,6 +648,29 @@ export default {
   font-size: 1.2em;
 }
 
+.service-details {
+  background: #f5f6f8;
+  border-radius: 8px;
+  padding: 15px 20px;
+  margin: 10px 0;
+  border: 1px solid transparent;
+}
+
+.service-details.error {
+  background: #ffebee;
+  border-color: #d32f2f;
+}
+
+.service-details p {
+  margin: 0;
+  font-size: 1.1em;
+}
+
+.service-details .error-message {
+  color: #d32f2f;
+  font-size: 1em;
+}
+
 .qodef-appontment-form-2 {
   display: flex;
   flex-direction: column;
@@ -714,6 +765,12 @@ input {
   background-color: #ffebee;
   border-radius: 4px;
   text-align: center;
+}
+
+.helper-text {
+  color: #666;
+  font-size: 0.85em;
+  margin-top: 4px;
 }
 
 @media (max-width: 768px) {

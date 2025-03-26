@@ -488,7 +488,7 @@ export default {
       try {
         // Keep the date in its original timezone and format
         const dateStr = date.toISOString().split('T')[0];
-        const url = `/book/${userId}/confirm?date=${encodeURIComponent(dateStr)}&time=${encodeURIComponent(time)}`;
+        const url = `/book/${userId}/confirm?date=${encodeURIComponent(dateStr)}&time=${encodeURIComponent(time)}&service=${encodeURIComponent(selectedService.value === 'rad' ? 'Rad wechseln' : 'Reifen wechseln')}`;
         console.log('Navigating to:', url);
         await router.push(url);
       } catch (error) {
@@ -597,7 +597,7 @@ export default {
       const userId = route.params.userId;
       // Convert date to Swiss timezone manually
       const swissDate = toSwissTime(selectedDate.value);
-      const url = `/book/${userId}/confirm?date=${encodeURIComponent(swissDate.toISOString())}&time=${encodeURIComponent(selectedTime.value)}`;
+      const url = `/book/${userId}/confirm?date=${encodeURIComponent(swissDate.toISOString())}&time=${encodeURIComponent(selectedTime.value)}&service=${encodeURIComponent(selectedService.value === 'rad' ? 'Rad wechseln' : 'Reifen wechseln')}`;
       console.log('Navigating to:', url);
       
       try {

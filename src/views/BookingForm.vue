@@ -5,6 +5,7 @@ const form = ref({
   year: '',
   date: '',
   time: '',
+  service: '',
   userId: route.params.userId,
   duration: 30 // Default duration in minutes
 });
@@ -29,7 +30,8 @@ const submitForm = async () => {
         userId: form.value.userId,
         carManufacturer: form.value.manufacturer,
         carYear: form.value.year,
-        duration: form.value.duration
+        duration: form.value.duration,
+        service: form.value.service
       }),
     });
 
