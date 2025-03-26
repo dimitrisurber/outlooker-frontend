@@ -55,7 +55,7 @@
         
         <div class="time-slots">
           <button 
-            v-for="slot in day.slots" 
+            v-for="(slot) in getValidSlots(day.slots)" 
             :key="slot.time"
             class="time-slot"
             :class="{ 
@@ -129,7 +129,9 @@
             <div v-for="(appt, idx) in getDayDebugInfo(day.date).debug.bookedAppointments" :key="'appt-'+idx" 
                  class="debug-appointment">
               <div class="appointment-time">
-                <span class="time-badge booked">{{ appt.swissStartTime }} - {{ appt.swissEndTime }}</span>
+                <span class="time-badge booked">
+                  {{ formatTime(appt.swissStartTime) }} - {{ formatTime(appt.swissEndTime) }}
+                </span>
                 <span class="duration-badge">{{ appt.duration }}</span>
               </div>
               <div class="appointment-title">{{ appt.title }}</div>
@@ -213,7 +215,7 @@
           <ul class="mt-1 text-sm bg-gray-100 p-2 rounded">
             <li v-for="(appt, index) in selectedDateDebugInfo.bookedAppointments" :key="index" class="mb-1">
               <div class="font-medium">{{ appt.title }}</div>
-              <div>Time: {{ appt.swissStartTime }} - {{ appt.swissEndTime }} ({{ appt.duration }})</div>
+              <div>Time: {{ formatTime(appt.swissStartTime) }} - {{ formatTime(appt.swissEndTime) }} ({{ appt.duration }})</div>
               <div v-if="appt.description" class="text-xs text-gray-600">{{ appt.description }}</div>
             </li>
           </ul>
@@ -257,6 +259,32 @@ export default {
     // Swiss timezone
     const SWISS_TIMEZONE = 'Europe/Zurich';
 
+    // Format a time string to 24-hour format
+    const formatTime = (time) => {
+      if (!time) return '';
+      
+      // If the time is already in HH:mm format, return it directly
+      if (time.match(/^\d{2}:\d{2}$/)) {
+        return time;
+      }
+      
+      // For ISO string format (2025-03-24T09:00), extract just the time part
+      if (time.includes('T')) {
+        const timePart = time.split('T')[1];
+        // Extract hours and minutes, ensuring we don't do any timezone conversion
+        const [hours, minutes] = timePart.split(':');
+        return `${hours}:${minutes}`;
+      }
+      
+      // For any other format, try to extract hours and minutes
+      const [hours, minutes] = time.split(':');
+      if (hours && minutes) {
+        return `${hours.padStart(2, '0')}:${minutes.padStart(2, '0')}`;
+      }
+      
+      return time;
+    };
+
     // Convert a date to Swiss timezone using Intl
     const toSwissTime = (date) => {
       if (!date) return new Date();
@@ -277,15 +305,13 @@ export default {
       const formattedDate = formatter.format(new Date(date));
       
       // Parse the formatted string back to a Date object
-      const [month, day, year, hour, minute, second] = formattedDate
-        .replace(',', '')
-        .replace(/\//g, ' ')
-        .replace(':', ' ')
-        .replace(':', ' ')
-        .split(' ')
-        .map(n => parseInt(n, 10));
+      // Note: We're keeping the date in UTC to avoid double timezone conversion
+      const [datePart, timePart] = formattedDate.split(', ');
+      const [month, day, year] = datePart.split('/').map(num => parseInt(num, 10));
+      const [hours, minutes, seconds] = timePart.split(':').map(num => parseInt(num, 10));
       
-      return new Date(year, month - 1, day, hour, minute, second);
+      const utcDate = new Date(Date.UTC(year, month - 1, day, hours, minutes, seconds));
+      return utcDate;
     };
 
     // Format a date using Swiss timezone
@@ -293,30 +319,6 @@ export default {
       if (!date) return '';
       const swissDate = toSwissTime(date);
       return format(swissDate, 'd MMM, yyyy');
-    };
-
-    // Format a time string to 24-hour format
-    const formatTime = (time) => {
-      if (!time) return '';
-      
-      let hours, minutes;
-      
-      // Handle ISO string format (2025-03-24T09:00)
-      if (time.includes('T')) {
-        [hours, minutes] = time.split('T')[1].split(':');
-      } else {
-        // Handle HH:mm format
-        [hours, minutes] = time.split(':');
-      }
-      
-      // Create a date object with the time
-      const date = new Date();
-      date.setHours(parseInt(hours));
-      date.setMinutes(parseInt(minutes));
-      
-      // Convert to Swiss timezone and format in 24-hour format
-      const swissDate = toSwissTime(date);
-      return format(swissDate, 'HH:mm');
     };
 
     // Define a state to store all days with their slots
@@ -463,196 +465,7 @@ export default {
       
       // Return only available slots
       if (dayData && dayData.slots) {
-        if (dayData.debug) {
-          console.log(`Getting slots for day: ${dateString}`);
-          
-          // Create a map of booked times for quick lookups
-          const bookedTimes = new Map();
-          
-          // First priority: Check booked appointments
-          if (dayData.debug.bookedAppointments && dayData.debug.bookedAppointments.length > 0) {
-            dayData.debug.bookedAppointments.forEach(appt => {
-              if (appt.swissStartTime) {
-                // Convert appointment time (e.g., "09:00") to the ISO8601 partial format (e.g., "2023-04-25T09:00")
-                const rawTime = `${dateString}T${appt.swissStartTime.replace(':', '')}`;
-                bookedTimes.set(rawTime, true);
-                console.log(`Adding booked appointment ${appt.swissStartTime} (${appt.title}) to booked times`);
-              }
-            });
-          }
-          
-          // Get schedule boundary times (first/last slots of the day)
-          const boundarySlots = dayData.debug.boundarySlots || [];
-          let scheduleStart = "09:00"; // Default start time if not found
-          let scheduleEnd = "17:00";   // Default end time if not found
-          
-          // Extract schedule bounds from boundary slots
-          boundarySlots.forEach(slot => {
-            if (slot.position === "first") {
-              scheduleStart = slot.time;
-              console.log(`Schedule start time: ${scheduleStart}`);
-            } else if (slot.position === "last") {
-              scheduleEnd = slot.time;
-              console.log(`Schedule end time: ${scheduleEnd}`);
-            }
-          });
-          
-          // Convert to minutes for easier comparison
-          const [startHour, startMinute] = scheduleStart.split(':').map(Number);
-          const [endHour, endMinute] = scheduleEnd.split(':').map(Number);
-          const scheduleStartMinutes = startHour * 60 + startMinute;
-          const scheduleEndMinutes = endHour * 60 + endMinute;
-          
-          console.log(`Schedule bounds: ${scheduleStart} (${scheduleStartMinutes} mins) to ${scheduleEnd} (${scheduleEndMinutes} mins)`);
-          
-          // Add all adjacent slots to a set for later use
-          const adjacentSlotTimes = new Set();
-          
-          if (dayData.debug.adjacentSlots && dayData.debug.adjacentSlots.length > 0) {
-            dayData.debug.adjacentSlots.forEach(slot => {
-              adjacentSlotTimes.add(slot.rawTime);
-              console.log(`Adjacent slot found: ${slot.time} (${slot.position} ${slot.adjacentTo})`);
-            });
-          }
-          
-          // Also include 30 minutes before and after each appointment
-          if (dayData.debug.bookedAppointments) {
-            dayData.debug.bookedAppointments.forEach(appt => {
-              // Get 30 min before appointment
-              const startHourMin = appt.swissStartTime.split(':').map(Number);
-              const startMinutes = startHourMin[0] * 60 + startHourMin[1];
-              const beforeMinutes = startMinutes - 30;
-              
-              // Only include if within business hours
-              if (beforeMinutes >= scheduleStartMinutes) {
-                const beforeHour = Math.floor(beforeMinutes / 60);
-                const beforeMin = beforeMinutes % 60;
-                const beforeTimeStr = `${String(beforeHour).padStart(2, '0')}:${String(beforeMin).padStart(2, '0')}`;
-                const beforeRawTime = `${dateString}T${beforeTimeStr}`;
-                adjacentSlotTimes.add(beforeRawTime);
-                console.log(`Adding slot 30 min before appointment: ${beforeTimeStr}`);
-              } else {
-                console.log(`Skipping slot 30 min before appointment ${appt.swissStartTime} - it's outside business hours`);
-              }
-              
-              // Get 30 min after appointment
-              const endHourMin = appt.swissEndTime.split(':').map(Number);
-              const endMinutes = endHourMin[0] * 60 + endHourMin[1];
-              
-              // Only include if within business hours
-              if (endMinutes <= scheduleEndMinutes) {
-                const afterRawTime = `${dateString}T${appt.swissEndTime}`;
-                adjacentSlotTimes.add(afterRawTime);
-                console.log(`Adding slot at appointment end: ${appt.swissEndTime}`);
-              } else {
-                console.log(`Skipping slot after appointment ${appt.swissEndTime} - it's outside business hours`);
-              }
-            });
-          }
-          
-          // Filter out any slots that are actually booked
-          const safeSlots = dayData.slots.filter(slot => {
-            // Only keep a slot if it's not booked
-            const isNotBooked = !bookedTimes.has(slot.time);
-            
-            // For debugging, log rejected slots
-            if (!isNotBooked) {
-              console.log(`Filtering out booked slot ${slot.time}`);
-            }
-            
-            return isNotBooked;
-          });
-          
-          // DIRECT FIX: Ensure all adjacent slots and boundary slots are included
-          let safeSlotsWithAdjacent = [...safeSlots];
-          
-          // Add all boundary slots that aren't booked
-          if (dayData.debug.boundarySlots) {
-            dayData.debug.boundarySlots.forEach(boundarySlot => {
-              // Only include if it's available (not booked or conflicting)
-              if (boundarySlot.isAvailable && !bookedTimes.has(boundarySlot.rawTime)) {
-                const slotAlreadyIncluded = safeSlotsWithAdjacent.some(s => s.time === boundarySlot.rawTime);
-                if (!slotAlreadyIncluded) {
-                  const timeDisplay = boundarySlot.time;
-                  console.log(`Adding boundary slot: ${timeDisplay}`);
-                  safeSlotsWithAdjacent.push({
-                    time: boundarySlot.rawTime,
-                    timeDisplay: timeDisplay
-                  });
-                }
-              } else {
-                console.log(`Skipping boundary slot ${boundarySlot.time} - it's either not available or booked`);
-              }
-            });
-          }
-          
-          // Add all adjacent slots that aren't booked
-          adjacentSlotTimes.forEach(rawTime => {
-            const slotAlreadyIncluded = safeSlotsWithAdjacent.some(s => s.time === rawTime);
-            const timeDisplay = rawTime.split('T')[1];
-            
-            // Skip if outside business hours
-            const [slotHour, slotMinute] = timeDisplay.split(':').map(Number);
-            const slotMinutes = slotHour * 60 + (slotMinute || 0); // Handle case where slotMinute might be undefined
-            
-            if (slotMinutes < scheduleStartMinutes || slotMinutes > scheduleEndMinutes) {
-              console.log(`Skipping slot ${timeDisplay} - outside business hours (${scheduleStart}-${scheduleEnd})`);
-              return;
-            }
-            
-            if (!slotAlreadyIncluded && !bookedTimes.has(rawTime)) {
-              console.log(`Adding adjacent slot: ${timeDisplay}`);
-              safeSlotsWithAdjacent.push({
-                time: rawTime,
-                timeDisplay: timeDisplay
-              });
-            }
-          });
-          
-          // DIRECT FIX: Special case for 10:00 slot on March 25
-          if (dateString === "2025-03-25") {
-            const tenAMSlot = safeSlotsWithAdjacent.find(s => s.time === "2025-03-25T10:00");
-            if (!tenAMSlot && !bookedTimes.has("2025-03-25T10:00")) {
-              console.log("Adding missing 10:00 AM slot on March 25, 2025");
-              safeSlotsWithAdjacent.push({
-                time: "2025-03-25T10:00",
-                timeDisplay: "10:00"
-              });
-            }
-            
-            // Also check for 11:30 AM slot
-            const elevenThirtySlot = safeSlotsWithAdjacent.find(s => s.time === "2025-03-25T11:30");
-            if (!elevenThirtySlot && !bookedTimes.has("2025-03-25T11:30")) {
-              console.log("Adding missing 11:30 AM slot on March 25, 2025");
-              safeSlotsWithAdjacent.push({
-                time: "2025-03-25T11:30",
-                timeDisplay: "11:30"
-              });
-            }
-          }
-          
-          // Sort slots chronologically
-          safeSlotsWithAdjacent.sort((a, b) => {
-            // Extract hours and minutes for comparison
-            const [aHour, aMinute] = (a.timeDisplay || a.time.split('T')[1]).split(':').map(Number);
-            const [bHour, bMinute] = (b.timeDisplay || b.time.split('T')[1]).split(':').map(Number);
-            
-            // Convert to minutes since midnight for easy comparison
-            const aMinutes = aHour * 60 + aMinute;
-            const bMinutes = bHour * 60 + bMinute;
-            
-            return aMinutes - bMinutes;
-          });
-          
-          // For debugging log total slots
-          console.log(`Final available slots: ${safeSlotsWithAdjacent.length}`);
-          safeSlotsWithAdjacent.forEach(slot => {
-            console.log(`- ${slot.timeDisplay || slot.time.split('T')[1]}`);
-          });
-          
-          return safeSlotsWithAdjacent;
-        }
-        
+        // Return the slots directly without modifying the time
         return dayData.slots;
       }
       
@@ -670,9 +483,9 @@ export default {
       
       // Use the URL structure that matches our new route
       try {
-        // Convert date to Swiss timezone manually
-        const swissDate = toSwissTime(date);
-        const url = `/book/${userId}/confirm?date=${encodeURIComponent(swissDate.toISOString())}&time=${encodeURIComponent(time)}`;
+        // Keep the date in its original timezone and format
+        const dateStr = date.toISOString().split('T')[0];
+        const url = `/book/${userId}/confirm?date=${encodeURIComponent(dateStr)}&time=${encodeURIComponent(time)}`;
         console.log('Navigating to:', url);
         await router.push(url);
       } catch (error) {
@@ -847,6 +660,36 @@ export default {
       })).filter(day => day.slots.length > 0); // Only include days with slots
     });
 
+    const getValidSlots = (slots) => {
+      if (!slots) return [];
+      return slots.filter((slot, index) => {
+        const currentTime = slot.time.split('T')[1];
+        
+        // First slot in a block is always valid
+        if (index === 0) return true;
+        
+        // Last slot in a block is always valid
+        if (index === slots.length - 1) return true;
+        
+        // Get times of adjacent slots
+        const prevTime = slots[index - 1].time.split('T')[1];
+        const nextTime = slots[index + 1].time.split('T')[1];
+        
+        // If there's a gap before or after this slot, it's valid
+        const minutesBefore = getMinutesDifference(prevTime, currentTime);
+        const minutesAfter = getMinutesDifference(currentTime, nextTime);
+        
+        // If either gap is more than 30 minutes, this slot is valid
+        return minutesBefore > 30 || minutesAfter > 30;
+      });
+    };
+
+    const getMinutesDifference = (time1, time2) => {
+      const [hours1, minutes1] = time1.split(':').map(Number);
+      const [hours2, minutes2] = time2.split(':').map(Number);
+      return (hours2 * 60 + minutes2) - (hours1 * 60 + minutes1);
+    };
+
     return {
       selectedDate,
       selectedTime,
@@ -872,7 +715,9 @@ export default {
       selectedDateDebugInfo,
       noSlotsForSelectedDate,
       isAdmin,
-      daysWithAvailableSlots
+      daysWithAvailableSlots,
+      getValidSlots,
+      getMinutesDifference
     };
   }
 };

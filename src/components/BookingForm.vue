@@ -404,6 +404,31 @@ export default {
       }
     };
 
+    // Format time for display
+    const formatTime = (timeString) => {
+      if (!timeString) return '';
+      
+      // If it's already in HH:mm format, return it directly
+      if (/^\d{2}:\d{2}$/.test(timeString)) {
+        return timeString;
+      }
+      
+      // Handle ISO string format (2025-03-25T16:30)
+      if (timeString.includes('T')) {
+        const timePart = timeString.split('T')[1];
+        return timePart.substring(0, 5); // Return just HH:mm
+      }
+      
+      // For any other format, try to extract hours and minutes
+      try {
+        const [hours, minutes] = timeString.split(':');
+        return `${hours.padStart(2, '0')}:${minutes.padStart(2, '0')}`;
+      } catch (error) {
+        console.error('Error formatting time:', error);
+        return timeString;
+      }
+    };
+
     // Format date for display
     const formatDate = (dateValue) => {
       if (!dateValue) return '';
@@ -428,28 +453,6 @@ export default {
         console.error('Error formatting date:', error);
         return dateValue.toString();
       }
-    };
-
-    // Format time for display
-    const formatTime = (timeString) => {
-      if (!timeString) return '';
-      
-      let startTime;
-      // Handle ISO string format (2025-03-25T16:30)
-      if (timeString.includes('T')) {
-        startTime = timeString.split('T')[1];
-      } else {
-        startTime = timeString;
-      }
-      
-      // Calculate end time (30 minutes after start)
-      const [hours, minutes] = startTime.split(':').map(Number);
-      const endDate = new Date();
-      endDate.setHours(hours);
-      endDate.setMinutes(minutes + 30);
-      const endTime = `${String(endDate.getHours()).padStart(2, '0')}:${String(endDate.getMinutes()).padStart(2, '0')}`;
-      
-      return `${startTime} - ${endTime}`;
     };
 
     onMounted(() => {

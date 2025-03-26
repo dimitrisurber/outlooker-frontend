@@ -99,18 +99,25 @@ export default {
     const formatTime = (timeString) => {
       if (!timeString) return '';
       
-      // If it's an ISO string with date and time (2025-03-25T16:30)
-      if (timeString.includes('T')) {
-        try {
-          const time = new Date(timeString);
-          return format(time, 'HH:mm', { locale: de });
-        } catch (error) {
-          // If parsing fails, just return the original
-          return timeString.split('T')[1] || timeString;
-        }
+      // If it's already in HH:mm format, return it directly
+      if (/^\d{2}:\d{2}$/.test(timeString)) {
+        return timeString;
       }
       
-      return timeString;
+      // Handle ISO string format (2025-03-25T16:30)
+      if (timeString.includes('T')) {
+        const timePart = timeString.split('T')[1];
+        return timePart.substring(0, 5); // Return just HH:mm
+      }
+      
+      // For any other format, try to extract hours and minutes
+      try {
+        const [hours, minutes] = timeString.split(':');
+        return `${hours.padStart(2, '0')}:${minutes.padStart(2, '0')}`;
+      } catch (error) {
+        console.error('Error formatting time:', error);
+        return timeString;
+      }
     };
     
     // Parse appointment date and time into Date objects
