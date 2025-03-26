@@ -538,6 +538,84 @@ export const calendarAPI = {
       throw error;
     }
   },
+  
+  getVacationBlocks: async (userId) => {
+    try {
+      if (!userId) {
+        const user = JSON.parse(localStorage.getItem('user'));
+        userId = user?.id;
+      }
+      
+      console.log('Getting vacation blocks for user:', userId);
+      const response = await api.get('/calendar/vacation-blocks', {
+        params: { userId }
+      });
+      console.log('Vacation blocks response:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('getVacationBlocks error:', error);
+      throw error;
+    }
+  },
+  
+  createVacationBlock: async (blockData) => {
+    try {
+      const user = JSON.parse(localStorage.getItem('user'));
+      if (!user?.id) {
+        throw new Error('User ID is required');
+      }
+      
+      console.log('Creating vacation block:', blockData);
+      const response = await api.post('/calendar/vacation-blocks', {
+        ...blockData,
+        userId: user.id
+      });
+      console.log('Vacation block created:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('createVacationBlock error:', error);
+      throw error;
+    }
+  },
+  
+  deleteVacationBlock: async (blockId) => {
+    try {
+      const user = JSON.parse(localStorage.getItem('user'));
+      if (!user?.id) {
+        throw new Error('User ID is required');
+      }
+      
+      console.log('Deleting vacation block:', blockId);
+      const response = await api.delete(`/calendar/vacation-blocks/${blockId}`, {
+        params: { userId: user.id }
+      });
+      console.log('Vacation block deleted:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('deleteVacationBlock error:', error);
+      throw error;
+    }
+  },
+
+  updateVacationBlock: async (blockId, blockData) => {
+    try {
+      const user = JSON.parse(localStorage.getItem('user'));
+      if (!user?.id) {
+        throw new Error('User ID is required');
+      }
+      
+      console.log('Updating vacation block:', blockId, blockData);
+      const response = await api.put(`/calendar/vacation-blocks/${blockId}`, {
+        ...blockData,
+        userId: user.id
+      });
+      console.log('Vacation block updated:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('updateVacationBlock error:', error);
+      throw error;
+    }
+  },
 };
 
 export const bookingAPI = {

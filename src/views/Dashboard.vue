@@ -173,6 +173,72 @@
           </div>
         </div>
 
+        <!-- Add Vacation Blocker Section -->
+        <div v-if="isCalendarConnected" class="vacation-section">
+          <h3>Vacation Blocks</h3>
+          <div class="vacation-blocks">
+            <div v-for="(block, index) in vacationBlocks" 
+                 :key="block.id || index" 
+                 class="vacation-block">
+              <div class="block-dates">
+                <div class="date-input-group">
+                  <label>Start Date</label>
+                  <input 
+                    type="date" 
+                    v-model="block.startDate"
+                    :min="new Date().toISOString().split('T')[0]"
+                    @change="validateBlockDates(index); block.isModified = true"
+                  >
+                </div>
+                <div class="date-input-group">
+                  <label>End Date</label>
+                  <input 
+                    type="date" 
+                    v-model="block.endDate"
+                    :min="block.startDate"
+                    @change="validateBlockDates(index); block.isModified = true"
+                  >
+                </div>
+              </div>
+              <div class="block-actions">
+                <button 
+                  v-if="block.id && !block.isModified"
+                  @click="deleteVacationBlock(index)"
+                  :disabled="block.isSubmitting"
+                  class="delete-button"
+                >
+                  {{ block.isSubmitting ? 'Deleting...' : 'Delete' }}
+                </button>
+                <base-button 
+                  v-if="block.isModified"
+                  variant="warning"
+                  :loading="block.isSubmitting"
+                  @click="updateVacationBlock(index)"
+                >
+                  {{ block.isSubmitting ? 'Updating...' : 'Update' }}
+                </base-button>
+                <base-button 
+                  v-if="!block.id"
+                  variant="success"
+                  :loading="block.isSubmitting"
+                  @click="saveVacationBlock(index)"
+                  :disabled="block.isSubmitting || !isValidBlock(block)"
+                >
+                  {{ block.isSubmitting ? 'Saving...' : 'Save' }}
+                </base-button>
+              </div>
+            </div>
+            
+            <base-button 
+              variant="primary"
+              @click="addNewVacationBlock" 
+              class="add-button"
+            >
+              Add Vacation Block
+            </base-button>
+          </div>
+        </div>
+
         <AvailableSlots 
           v-if="isCalendarConnected"
           class="available-slots-section"
@@ -210,6 +276,7 @@ export default {
     const loading = ref(false);
     const isConnected = ref(false);
     const calendarEmail = ref('');
+    const vacationBlocks = ref([]);
 
     const connectCalendar = async () => {
       try {
@@ -529,6 +596,149 @@ export default {
       }
     };
 
+    const fetchVacationBlocks = async () => {
+      try {
+        const user = JSON.parse(localStorage.getItem('user'));
+        if (!user?.id) {
+          throw new Error('User ID is required');
+        }
+        
+        console.log('Fetching vacation blocks');
+        const response = await calendarAPI.getVacationBlocks(user.id);
+        vacationBlocks.value = response.blocks.map(block => ({
+          id: block.id,
+          startDate: block.start_date,
+          endDate: block.end_date,
+          description: block.description,
+          isSubmitting: false,
+          isModified: false
+        }));
+        console.log('Fetched vacation blocks:', vacationBlocks.value);
+      } catch (err) {
+        console.error('Failed to fetch vacation blocks:', err);
+        error.value = err.message || 'Failed to load vacation blocks';
+      }
+    };
+
+    const createEmptyVacationBlock = () => ({
+      startDate: new Date().toISOString().split('T')[0],
+      endDate: new Date().toISOString().split('T')[0],
+      description: '',
+      isSubmitting: false,
+      isModified: false
+    });
+
+    const validateBlockDates = (index) => {
+      const block = vacationBlocks.value[index];
+      if (block.startDate && block.endDate) {
+        const startDate = new Date(block.startDate);
+        const endDate = new Date(block.endDate);
+        if (startDate > endDate) {
+          block.startDate = block.endDate;
+        }
+      }
+    };
+
+    const isValidBlock = (block) => {
+      const startDate = new Date(block.startDate);
+      const endDate = new Date(block.endDate);
+      const today = new Date();
+      return startDate <= endDate && startDate >= today;
+    };
+
+    const saveVacationBlock = async (index) => {
+      try {
+        const block = vacationBlocks.value[index];
+        block.isSubmitting = true;
+
+        const blockData = {
+          startDate: block.startDate,
+          endDate: block.endDate
+        };
+
+        console.log('Saving vacation block:', blockData);
+        const response = await calendarAPI.createVacationBlock(blockData);
+        block.id = response.id;
+        console.log('Vacation block saved successfully');
+        
+        await fetchVacationBlocks();
+      } catch (err) {
+        console.error('Failed to save vacation block:', err);
+        
+        // Set specific message for network issues
+        if (err.message.includes('Network Error') || 
+            err.message.includes('timeout') ||
+            err.code === 'ECONNABORTED' ||
+            err.response?.status >= 500) {
+          error.value = 'Network connectivity issues. Unable to save vacation block.';
+        } else {
+          error.value = err.response?.data?.error || 'Failed to save vacation block';
+        }
+      } finally {
+        vacationBlocks.value[index].isSubmitting = false;
+      }
+    };
+
+    const deleteVacationBlock = async (index) => {
+      const block = vacationBlocks.value[index];
+      block.isSubmitting = true;
+      
+      try {
+        await calendarAPI.deleteVacationBlock(block.id);
+        vacationBlocks.value.splice(index, 1);
+      } catch (err) {
+        console.error('Failed to delete vacation block:', err);
+        
+        // Set specific message for network issues
+        if (err.message.includes('Network Error') || 
+            err.message.includes('timeout') ||
+            err.code === 'ECONNABORTED' ||
+            err.response?.status >= 500) {
+          error.value = 'Network connectivity issues. Unable to delete vacation block.';
+        } else {
+          error.value = err.response?.data?.error || 'Failed to delete vacation block';
+        }
+      } finally {
+        vacationBlocks.value[index].isSubmitting = false;
+      }
+    };
+
+    const addNewVacationBlock = () => {
+      vacationBlocks.value.push(createEmptyVacationBlock());
+    };
+
+    const updateVacationBlock = async (index) => {
+      try {
+        const block = vacationBlocks.value[index];
+        block.isSubmitting = true;
+
+        const blockData = {
+          startDate: block.startDate,
+          endDate: block.endDate
+        };
+
+        console.log('Updating vacation block:', blockData);
+        await calendarAPI.updateVacationBlock(block.id, blockData);
+        block.isModified = false;
+        console.log('Vacation block updated successfully');
+        
+        await fetchVacationBlocks();
+      } catch (err) {
+        console.error('Failed to update vacation block:', err);
+        
+        if (err.message.includes('Network Error') || 
+            err.message.includes('timeout') ||
+            err.code === 'ECONNABORTED' ||
+            err.response?.status >= 500) {
+          error.value = 'Network connectivity issues. Unable to update vacation block.';
+        } else {
+          error.value = err.response?.data?.error || 'Failed to update vacation block';
+        }
+      } finally {
+        vacationBlocks.value[index].isSubmitting = false;
+      }
+    };
+
     onMounted(async () => {
       // Set admin status
       const user = JSON.parse(localStorage.getItem('user'));
@@ -546,6 +756,7 @@ export default {
 
       if (isCalendarConnected.value) {
         await fetchSchedules();
+        await fetchVacationBlocks();
         // Check if Google Calendar API is available
         await checkGoogleCalendarStatus();
       }
@@ -578,7 +789,16 @@ export default {
       loading,
       isConnected,
       calendarEmail,
-      checkCalendarStatus
+      checkCalendarStatus,
+      vacationBlocks,
+      createEmptyVacationBlock,
+      validateBlockDates,
+      isValidBlock,
+      saveVacationBlock,
+      deleteVacationBlock,
+      addNewVacationBlock,
+      fetchVacationBlocks,
+      updateVacationBlock
     };
   }
 };
@@ -609,12 +829,11 @@ export default {
   margin: 0 auto;
 }
 
-
-/* Bottom row - half width items */
 .calendar-section,
 .booking-link-section,
 .schedule-section,
-.available-slots-section {
+.available-slots-section,
+.vacation-section {
   flex: 0 0 calc(50% - 1rem);
   box-sizing: border-box;
   min-width: 300px;
@@ -629,7 +848,8 @@ export default {
   }
   
   .schedule-section,
-  .available-slots-section {
+  .available-slots-section,
+  .vacation-section {
     flex: 0 0 100%;
     max-width: 100%;
     min-width: auto;
@@ -848,5 +1068,65 @@ export default {
 .calendar-email {
   margin: 0;
   padding: 5px 0;
+}
+
+.vacation-section {
+  background: white;
+  padding: 2rem;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  margin-top: 0; /* Remove top margin since it's now in the flex layout */
+}
+
+.vacation-blocks {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.vacation-block {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid #dee2e6;
+}
+
+.block-dates {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.block-dates input[type="date"] {
+  padding: 0.5rem;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+}
+
+.block-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.save-button {
+  background-color: #28a745;
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.save-button:disabled {
+  background-color: #6c757d;
+  cursor: not-allowed;
+}
+
+.save-button:hover:not(:disabled) {
+  background-color: #218838;
 }
 </style> 

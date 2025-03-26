@@ -291,6 +291,7 @@ export default {
     const days = ref([]);
     const apiBaseUrl = process.env.VUE_APP_API_URL || '';
     const selectedService = ref(null);
+    const vacationBlocks = ref([]);
     
     // Check admin status directly from localStorage
     const isAdmin = computed(() => {
@@ -416,37 +417,16 @@ export default {
           }
         } catch (connectionError) {
           console.error('Error checking calendar connection:', connectionError);
-          // Continue anyway, as we'll get a more specific error if needed
         }
-        
-        // First, debug schedules to see what we're working with
+
+        // Get vacation blocks
         try {
-          const scheduleResult = await calendarAPI.debugSchedules(userId);
-          console.log('DEBUG - User schedules:', scheduleResult);
-          
-          if (!scheduleResult.schedules || scheduleResult.schedules.length === 0) {
-            console.warn('WARNING: User has no schedules defined!');
-            errorMessage.value = 'No schedules defined. Please set up your available times first.';
-            isLoading.value = false;
-            return;
-          }
-        } catch (debugError) {
-          console.error('Failed to debug schedules:', debugError);
-          // Try regular schedules endpoint as fallback
-          try {
-            const schedules = await calendarAPI.getSchedules(userId);
-            console.log('Regular schedules check:', schedules);
-            
-            if (!schedules || schedules.length === 0) {
-              console.warn('WARNING: User has no schedules defined (regular check)');
-              errorMessage.value = 'No schedules defined. Please set up your available times first.';
-              isLoading.value = false;
-              return;
-            }
-          } catch (schedulesError) {
-            console.error('Failed to fetch schedules:', schedulesError);
-            // Continue anyway, as the next API might still work
-          }
+          const vacationResponse = await calendarAPI.getVacationBlocks(userId);
+          vacationBlocks.value = vacationResponse.blocks || [];
+          console.log('Vacation blocks:', vacationBlocks.value);
+        } catch (vacationError) {
+          console.error('Error fetching vacation blocks:', vacationError);
+          // Continue anyway as this is not critical
         }
         
         // Get all slots for the next two weeks
@@ -455,19 +435,6 @@ export default {
         console.log('All slots for next two weeks:', result);
         
         if (result.success) {
-          // Just use the slots from the backend directly without filtering
-          console.log('Days with slots from server:', result.days);
-          
-          // Examine the structure of the debug data
-          if (result.days && result.days.length > 0) {
-            const sampleDay = result.days[0];
-            console.log('Sample day structure:', sampleDay);
-            console.log('Debug data available?', !!sampleDay.debug);
-            if (sampleDay.debug) {
-              console.log('Debug data structure:', sampleDay.debug);
-            }
-          }
-          
           allDaysWithSlots.value = result.days;
         } else {
           console.error('Failed to fetch slots:', result.error);
@@ -476,19 +443,12 @@ export default {
       } catch (error) {
         console.error('Failed to fetch all available slots:', error);
         
-        // Handle specific error responses
         if (error.response) {
           if (error.response.status === 401) {
-            // Not connected to calendar
-            console.error('Calendar not connected:', error.response.data?.error);
             errorMessage.value = error.response.data?.error || 'Calendar not connected';
           } else if (error.response.status === 503) {
-            // Network connectivity issues
-            console.error('Network issues:', error.response.data?.error);
             errorMessage.value = error.response.data?.error || 'Network connectivity issues';
           } else if (error.response.status === 404) {
-            // Endpoint not found (likely API changes)
-            console.error('API endpoint not found:', error.response.data?.error);
             errorMessage.value = 'This feature is not available. The server API has changed.';
           } else {
             errorMessage.value = error.response.data?.error || 'Failed to fetch available slots';
@@ -692,26 +652,82 @@ export default {
       return !dayData || !dayData.slots || dayData.slots.length === 0;
     });
 
-    // Add computed property for days with available slots
+    // Update the computed property to handle vacation blocks
     const daysWithAvailableSlots = computed(() => {
       if (!allDaysWithSlots.value) return [];
       
-      return allDaysWithSlots.value.map(day => ({
-        ...day,
-        date: new Date(day.date), // Convert date string to Date object
-        slots: day.slots || [] // Ensure slots is always an array
-      })).filter(day => day.slots.length > 0); // Only include days with slots
+      return allDaysWithSlots.value
+        .map(day => {
+          const dayDate = new Date(day.date + 'T00:00:00.000Z'); // Ensure consistent date format
+          
+          // Check if this day falls within any vacation block
+          const isVacation = vacationBlocks.value.some(block => {
+            const startDate = new Date(block.start_date + 'T00:00:00.000Z');
+            const endDate = new Date(block.end_date + 'T00:00:00.000Z');
+            
+            // Compare dates without time components
+            return dayDate >= startDate && dayDate <= endDate;
+          });
+
+          if (isVacation) {
+            console.log(`Filtering out vacation day: ${day.date}`);
+            return null; // Return null for vacation days to filter them out
+          }
+
+          return {
+            ...day,
+            date: dayDate,
+            slots: day.slots || [] // Keep original slots if not a vacation day
+          };
+        })
+        .filter(day => {
+          // Filter out:
+          // 1. Null entries (vacation days)
+          // 2. Sundays (day 0)
+          // 3. Days with no slots
+          return day && day.date.getDay() !== 0 && day.slots.length > 0;
+        });
     });
+
+    // Update the isDayInVacation helper to use the same date comparison logic
+    const isDayInVacation = (date) => {
+      if (!date) return false;
+      
+      const checkDate = new Date(date.toISOString().split('T')[0] + 'T00:00:00.000Z');
+      
+      return vacationBlocks.value.some(block => {
+        const startDate = new Date(block.start_date + 'T00:00:00.000Z');
+        const endDate = new Date(block.end_date + 'T00:00:00.000Z');
+        
+        return checkDate >= startDate && checkDate <= endDate;
+      });
+    };
 
     const getValidSlots = (slots) => {
       if (!slots) return [];
       return slots.filter((slot, index) => {
         const currentTime = slot.time.split('T')[1];
+        const [hours, minutes] = currentTime.split(':').map(Number);
+        const slotTimeInMinutes = hours * 60 + minutes;
         
-        // First slot in a block is always valid
+        // Calculate when this slot would end based on appointment duration
+        const slotEndTimeInMinutes = slotTimeInMinutes + appointmentDuration.value;
+        
+        // Don't allow slots that would end after 17:00 (1020 minutes)
+        const scheduleEndInMinutes = 17 * 60; // 17:00
+        if (slotEndTimeInMinutes > scheduleEndInMinutes) {
+          return false;
+        }
+        
+        // If this slot ends exactly at the schedule end time, it's valid
+        if (slotEndTimeInMinutes === scheduleEndInMinutes) {
+          return true;
+        }
+        
+        // First slot in a block is always valid (if it doesn't exceed end time)
         if (index === 0) return true;
         
-        // Last slot in a block is always valid
+        // Last slot in a block is always valid (if it doesn't exceed end time)
         if (index === slots.length - 1) return true;
         
         // Get times of adjacent slots
@@ -804,7 +820,9 @@ export default {
       fetchAvailability,
       selectedService,
       selectService,
-      changeService
+      changeService,
+      vacationBlocks,
+      isDayInVacation
     };
   }
 };
