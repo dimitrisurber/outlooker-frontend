@@ -38,94 +38,45 @@
 <script>
 import { ref, onMounted } from 'vue';
 import { calendarAPI } from '@/services/api';
-import { format, addDays, parseISO, addMinutes, isWithinInterval } from 'date-fns';
+import { format, parseISO } from 'date-fns';
+import { Schedule } from '@/utils/schedule';
 
 export default {
   name: 'AvailableSlots',
-  setup() {
+  setup(props) {
     const availableSlots = ref([]);
     const isLoading = ref(true);
     const error = ref(null);
 
-    const calculateAvailableSlots = async () => {
+    const fetchAvailableSlots = async () => {
       try {
         isLoading.value = true;
         error.value = null;
-
-        const user = JSON.parse(localStorage.getItem('user'));
-        console.log('Getting schedules for user:', user);
-
-        // Get schedules
-        const schedules = await calendarAPI.getSchedules(user.id);
-        console.log('Received schedules:', schedules);
-
-        if (!schedules?.length) {
-          error.value = 'No schedules set';
-          return;
-        }
-
-        // Get calendar events for next 7 days
-        const startDate = new Date();
-        const endDate = addDays(startDate, 7);
         
-        const eventsResponse = await calendarAPI.getEvents(
-          startDate,
-          endDate,
-          user.id
+        // Get busy slots for the next 7 days
+        const busySlots = await calendarAPI.getEvents();
+        
+        // Get available slots for the selected date
+        const availableSlots = await calendarAPI.getAvailableSlots(
+          props.selectedDate,
+          props.userId,
+          props.appointmentDuration
         );
-        const busySlots = eventsResponse.data.events || [];
-        console.log('Busy slots:', busySlots);
-
-        // Generate available slots
-        const slots = [];
-        let currentDate = startDate;
-
-        while (currentDate <= endDate) {
-          const dayName = format(currentDate, 'EEE').toUpperCase();
-          
-          // Find schedule for this day
-          const daySchedule = schedules.find(s => s.days.includes(dayName));
-          
-          if (daySchedule) {
-            // Generate 30-minute slots within schedule
-            const startTime = parseISO(`2000-01-01T${daySchedule.startTime}`);
-            const endTime = parseISO(`2000-01-01T${daySchedule.endTime}`);
-            let slotTime = startTime;
-
-            while (slotTime < endTime) {
-              const slotEndTime = addMinutes(slotTime, 30);
-              const slotDateTime = new Date(currentDate);
-              slotDateTime.setHours(slotTime.getHours(), slotTime.getMinutes());
-
-              // Check if slot conflicts with any busy slots
-              const isSlotAvailable = !busySlots.some(event => {
-                if (!event.start || !event.end) return false;
-                const eventStart = new Date(event.start.dateTime || event.start.date);
-                const eventEnd = new Date(event.end.dateTime || event.end.date);
-                return isWithinInterval(slotDateTime, { start: eventStart, end: eventEnd }) ||
-                       isWithinInterval(addMinutes(slotDateTime, 30), { start: eventStart, end: eventEnd });
-              });
-
-              if (isSlotAvailable) {
-                slots.push({
-                  date: format(currentDate, 'yyyy-MM-dd'),
-                  time: format(slotTime, 'HH:mm'),
-                  dateTime: slotDateTime.toISOString()
-                });
-              }
-
-              slotTime = slotEndTime;
-            }
-          }
-
-          currentDate = addDays(currentDate, 1);
-        }
-
-        console.log('Generated available slots:', slots);
+        
+        // Generate available slots based on user's schedules and existing events
+        const slots = new Schedule(
+          availableSlots.schedules,
+          busySlots
+        ).generateTimeSlots(props.selectedDate, props.appointmentDuration);
+        
+        // Sort slots by time
+        slots.sort((a, b) => a.startTime.localeCompare(b.startTime));
+        
+        // Update available slots
         availableSlots.value = slots;
-      } catch (error) {
-        console.error('Error calculating available slots:', error);
-        error.value = error.response?.data?.error || 'Failed to calculate available slots';
+      } catch (err) {
+        console.error('Error fetching available slots:', err);
+        error.value = err.message || 'Failed to fetch available slots';
       } finally {
         isLoading.value = false;
       }
@@ -148,7 +99,7 @@ export default {
     };
 
     onMounted(() => {
-      calculateAvailableSlots();
+      fetchAvailableSlots();
     });
 
     return {

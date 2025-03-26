@@ -252,16 +252,19 @@ export const calendarAPI = {
   },
   
   // Get available slots for the next two weeks at once
-  getNextTwoWeeksAvailability: async (userId) => {
+  getNextTwoWeeksAvailability: async (userId, duration) => {
     try {
       if (!userId) {
         throw new Error('userId is required');
       }
       
-      console.log('Getting next two weeks availability for user:', userId);
+      console.log('Getting next two weeks availability for user:', userId, 'with duration:', duration);
       
       const response = await api.get('/calendar/availability/next-two-weeks', {
-        params: { userId }
+        params: { 
+          userId,
+          duration 
+        }
       });
       
       console.log('Next two weeks availability response:', response.data);
@@ -467,19 +470,20 @@ export const calendarAPI = {
     }
   },
   
-  getAvailableSlots: async (date, userId) => {
+  getAvailableSlots: async (date, userId, duration) => {
     try {
       if (!userId) {
         throw new Error('userId is required');
       }
       
       const formattedDate = typeof date === 'string' ? date : date.toISOString();
-      console.log('Getting available slots:', { date: formattedDate, userId });
+      console.log('Getting available slots:', { date: formattedDate, userId, duration });
       
       const response = await api.get('/calendar/availability', { 
         params: { 
           date: formattedDate,
-          userId 
+          userId,
+          duration
         }
       });
       console.log('Available slots response:', response.data);

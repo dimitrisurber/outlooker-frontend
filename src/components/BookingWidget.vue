@@ -2,11 +2,47 @@
   <div class="booking-widget">
     <div class="header">
       <button class="back-button" @click="$router.back()">←</button>
-      <h1>Verfügbare Termine</h1>
+      <h1>Service auswählen</h1>
+    </div>
+
+    <!-- Service Selection -->
+    <div class="service-selection" v-if="!selectedService">
+      <div class="service-tiles">
+        <div 
+          class="service-tile"
+          @click="selectService('rad', 30)"
+        >
+          <h2>Rad wechseln</h2>
+          <div class="service-duration">Dauer: 30 Minuten</div>
+          <p class="service-description">
+            Schneller und professioneller Radwechsel für Ihr Fahrzeug. Ideal für einzelne Räder oder wenn Sie bereits über die passenden Reifen verfügen.
+          </p>
+        </div>
+        
+        <div 
+          class="service-tile"
+          @click="selectService('reifen', 60)"
+        >
+          <h2>Reifen wechseln</h2>
+          <div class="service-duration">Dauer: 60 Minuten</div>
+          <p class="service-description">
+            Kompletter Reifenwechsel inklusive Auswuchten und Montage. Perfekt für saisonalen Reifenwechsel oder wenn Sie neue Reifen benötigen.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Selected Service Header -->
+    <div v-if="selectedService" class="selected-service-header">
+      <h2>{{ selectedService === 'rad' ? 'Rad wechseln' : 'Reifen wechseln' }}</h2>
+      <div class="service-duration">Dauer: {{ appointmentDuration }} Minuten</div>
+      <button class="change-service-button" @click="changeService">
+        Service ändern
+      </button>
     </div>
 
     <!-- Admin Actions -->
-    <div class="admin-actions" v-if="isAdmin">
+    <div class="admin-actions" v-if="isAdmin && selectedService">
       <button @click="resetUserSchedules" class="admin-button">
         Reset Test Schedules
       </button>
@@ -37,7 +73,7 @@
     </div>
 
     <!-- Days List with Time Slots -->
-    <div v-else class="days-list">
+    <div v-else-if="selectedService" class="days-list">
       <div v-if="daysWithAvailableSlots.length === 0" class="no-available-days">
         <div class="empty-calendar-icon">📅</div>
         <h3>Keine verfügbaren Termine</h3>
@@ -249,6 +285,12 @@ export default {
     const selectedTime = ref(null);
     const availableSlots = ref([]);
     const showDebugInfo = ref(false);
+    const appointmentDuration = ref(30); // Default duration in minutes
+    const loading = ref(false);
+    const error = ref(null);
+    const days = ref([]);
+    const apiBaseUrl = process.env.VUE_APP_API_URL || '';
+    const selectedService = ref(null);
     
     // Check admin status directly from localStorage
     const isAdmin = computed(() => {
@@ -408,7 +450,8 @@ export default {
         }
         
         // Get all slots for the next two weeks
-        const result = await calendarAPI.getNextTwoWeeksAvailability(userId);
+        console.log('Fetching next two weeks availability with appointment duration:', appointmentDuration.value);
+        const result = await calendarAPI.getNextTwoWeeksAvailability(userId, appointmentDuration.value);
         console.log('All slots for next two weeks:', result);
         
         if (result.success) {
@@ -690,6 +733,45 @@ export default {
       return (hours2 * 60 + minutes2) - (hours1 * 60 + minutes1);
     };
 
+    const fetchAvailability = async () => {
+      try {
+        loading.value = true;
+        const response = await fetch(
+          `${apiBaseUrl}/availability/next-two-weeks?userId=${route.params.userId}&duration=${appointmentDuration.value}`
+        );
+        const data = await response.json();
+        
+        if (data.success) {
+          days.value = data.days;
+          // Update local duration if server returns a different value
+          if (data.appointmentDuration) {
+            appointmentDuration.value = data.appointmentDuration;
+          }
+        } else {
+          console.error('Failed to fetch availability:', data.error);
+          error.value = 'Failed to load available time slots';
+        }
+      } catch (err) {
+        console.error('Error fetching availability:', err);
+        error.value = 'Failed to load available time slots';
+      } finally {
+        loading.value = false;
+      }
+    };
+
+    const selectService = async (service, duration) => {
+      console.log(`Selecting service: ${service} with duration: ${duration} minutes`);
+      selectedService.value = service;
+      appointmentDuration.value = duration;
+      await fetchAllAvailableSlots();
+    };
+
+    const changeService = () => {
+      selectedService.value = null;
+      appointmentDuration.value = 30;
+      allDaysWithSlots.value = [];
+    };
+
     return {
       selectedDate,
       selectedTime,
@@ -717,7 +799,12 @@ export default {
       isAdmin,
       daysWithAvailableSlots,
       getValidSlots,
-      getMinutesDifference
+      getMinutesDifference,
+      appointmentDuration,
+      fetchAvailability,
+      selectedService,
+      selectService,
+      changeService
     };
   }
 };
@@ -1074,5 +1161,78 @@ export default {
   font-size: 40px;
   color: #4169e1;
   margin-bottom: 20px;
+}
+
+.service-selection {
+  margin: 20px 0;
+}
+
+.service-tiles {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.service-tile {
+  background: #f5f6f8;
+  border-radius: 15px;
+  padding: 20px;
+  cursor: pointer;
+  transition: all 0.3s;
+  border: 2px solid transparent;
+}
+
+.service-tile:hover {
+  background: #e8eaf6;
+  border-color: #4169e1;
+}
+
+.service-tile h2 {
+  margin: 0 0 10px 0;
+  color: #4169e1;
+}
+
+.service-duration {
+  font-weight: 500;
+  color: #666;
+  margin-bottom: 10px;
+}
+
+.service-description {
+  margin: 0;
+  color: #444;
+  line-height: 1.5;
+}
+
+.selected-service-header {
+  background: #e8eaf6;
+  border-radius: 15px;
+  padding: 20px;
+  margin-bottom: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.selected-service-header h2 {
+  margin: 0 0 5px 0;
+  color: #4169e1;
+}
+
+.change-service-button {
+  margin-top: 10px;
+  padding: 8px 16px;
+  background: #4169e1;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.3s;
+  font-size: 14px;
+}
+
+.change-service-button:hover {
+  background: #3151b7;
 }
 </style> 

@@ -147,7 +147,11 @@ export default {
       name: '',
       phone: '',
       manufacturer: '',
-      year: ''
+      year: '',
+      date: '',
+      time: '',
+      userId: route.params.userId,
+      duration: 30 // Default duration in minutes
     });
 
     // Swiss phone number validation
@@ -361,7 +365,8 @@ export default {
             phone: form.value.phone,
             carManufacturer: form.value.manufacturer,
             carYear: form.value.year
-          }
+          },
+          duration: form.value.duration
         };
         
         // Only add recaptchaToken if we actually have one
