@@ -251,27 +251,17 @@ export const calendarAPI = {
     }
   },
   
-  // Get available slots for the next two weeks at once
-  getNextTwoWeeksAvailability: async (userId, duration) => {
+  // Get available slots for the next month at once
+  getNextMonthAvailability: async (userId, duration) => {
+    console.log('Getting next month availability for user:', userId, 'with duration:', duration);
     try {
-      if (!userId) {
-        throw new Error('userId is required');
-      }
-      
-      console.log('Getting next two weeks availability for user:', userId, 'with duration:', duration);
-      
       const response = await api.get('/calendar/availability/next-two-weeks', {
-        params: { 
-          userId,
-          duration 
-        }
+        params: { userId, duration }
       });
-      
-      console.log('Next two weeks availability response:', response.data);
+      console.log('Next month availability response:', response.data);
       return response.data;
     } catch (error) {
-      console.error('getNextTwoWeeksAvailability error:', error);
-      // Rethrow error to be handled by the component
+      console.error('getNextMonthAvailability error:', error);
       throw error;
     }
   },

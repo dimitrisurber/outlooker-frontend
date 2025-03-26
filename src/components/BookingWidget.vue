@@ -77,7 +77,7 @@
       <div v-if="daysWithAvailableSlots.length === 0" class="no-available-days">
         <div class="empty-calendar-icon">📅</div>
         <h3>Keine verfügbaren Termine</h3>
-        <p>In den nächsten 14 Tagen sind keine Termine verfügbar.</p>
+        <p>Im nächsten Monat sind keine Termine verfügbar.</p>
       </div>
       <div 
         v-else
@@ -393,7 +393,7 @@ export default {
       }
     };
 
-    // Fetch all available slots for next two weeks at once
+    // Fetch all available slots for next month at once
     const fetchAllAvailableSlots = async () => {
       try {
         const userId = route.params.userId;
@@ -429,10 +429,10 @@ export default {
           // Continue anyway as this is not critical
         }
         
-        // Get all slots for the next two weeks
-        console.log('Fetching next two weeks availability with appointment duration:', appointmentDuration.value);
-        const result = await calendarAPI.getNextTwoWeeksAvailability(userId, appointmentDuration.value);
-        console.log('All slots for next two weeks:', result);
+        // Get all slots for the next month
+        console.log('Fetching next month availability with appointment duration:', appointmentDuration.value);
+        const result = await calendarAPI.getNextMonthAvailability(userId, appointmentDuration.value);
+        console.log('All slots for next month:', result);
         
         if (result.success) {
           allDaysWithSlots.value = result.days;
