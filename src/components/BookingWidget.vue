@@ -57,7 +57,7 @@
     </div>
 
     <!-- Loading state -->
-    <div v-if="isLoading" class="loading-state">
+    <div v-if="isLoading && selectedService" class="loading-state">
       <div class="loading-spinner"></div>
       <p>Lade verfügbare Termine...</p>
     </div>
