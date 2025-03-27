@@ -1,7 +1,6 @@
 <template>
   <div class="booking-form">
     <div class="header">
-      <button class="back-button" @click="$router.back()">←</button>
       <h1>Buchung abschließen</h1>
     </div>
 

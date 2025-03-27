@@ -1,7 +1,6 @@
 <template>
   <div class="booking-widget">
     <div class="header">
-      <button class="back-button" @click="$router.back()">←</button>
       <h1>Service auswählen</h1>
     </div>
 
