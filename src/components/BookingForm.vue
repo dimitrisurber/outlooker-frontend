@@ -8,7 +8,17 @@
       <h2>Termindetails</h2>
       <p><strong>Datum:</strong> {{ formatDate(appointmentDate) }}</p>
       <p><strong>Uhrzeit:</strong> {{ formatTime(appointmentTime) }}</p>
+      <div class="detail-item">
+          <span class="label">Ort:</span>
+          <span class="value">Garage Wertli, Neunbrunnenstrasse 255, 8046 Zürich</span>
+        </div>
     </div>
+
+    <div class="service-details" :class="{ 'error': !form.service }">
+        <p v-if="form.service"><strong>Service:</strong> {{ form.service }}</p>
+        <p v-else class="error-message">Service wurde nicht ausgewählt. Bitte gehen Sie zurück und wählen Sie einen Service.</p>
+      </div>
+
 
     <form @submit.prevent="submitBooking" class="qodef-appontment-form-2">
       <div class="form-row qodef-col-2">
@@ -94,11 +104,7 @@
         </div>
       </div>
 
-      <div class="service-details" :class="{ 'error': !form.service }">
-        <p v-if="form.service"><strong>Service:</strong> {{ form.service }}</p>
-        <p v-else class="error-message">Service wurde nicht ausgewählt. Bitte gehen Sie zurück und wählen Sie einen Service.</p>
-      </div>
-
+      
       <!-- reCAPTCHA v3 badge will appear at the bottom right of the page -->
       <div v-if="recaptchaError" class="recaptcha-error">
         Sicherheitsüberprüfung fehlgeschlagen. Bitte versuchen Sie es erneut oder kontaktieren Sie uns.
