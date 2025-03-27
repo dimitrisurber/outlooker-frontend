@@ -105,77 +105,23 @@
           </div>
         </div>
         
-        <!-- Debug Information (toggleable) -->
+        <!-- Debug Information -->
         <div v-if="showDebugInfo" class="debug-info">
-          <h3>Debug Info for {{ day.date.toISOString().split('T')[0] }}</h3>
-          
-          <!-- Basic slot information -->
-          <div class="debug-section">
-            <strong>Slot Information:</strong>
-            <div v-if="day.slots.length === 0" class="debug-empty">
-              No available slots for this day
+          <h3>Debug Information</h3>
+          <div v-for="day in daysWithAvailableSlots" :key="day.date" class="debug-day">
+            <h4>Date: {{ day.date }}</h4>
+            <div class="debug-section">
+              <h5>Available Slots:</h5>
+              <pre>{{ getValidSlots(day.slots) }}</pre>
             </div>
-            <div v-else>
-              <div v-for="(slot, idx) in day.slots" :key="'slot-'+idx" 
-                   class="debug-item available">
-                {{ formatTime(slot.time.split('T')[1]) }} ({{ slot.time }})
-              </div>
+            <div class="debug-section">
+              <h5>Busy Times:</h5>
+              <pre>{{ day.busyTimes || 'No busy times' }}</pre>
             </div>
-          </div>
-          
-          <!-- Schedule information for this day -->
-          <div class="debug-section">
-            <strong>Non-Fracturing Context:</strong>
-            <p>
-              Slots are only available at boundaries (start/end of a schedule) or adjacent to existing bookings. 
-              This prevents fragmentation of your calendar.
-            </p>
-          </div>
-          
-          <!-- Show conflicts between boundary slots and booked appointments -->
-          <div v-if="getDayDebugInfo(day.date)?.debug?.boundarySlots && getDayDebugInfo(day.date)?.debug?.bookedAppointments" class="debug-section">
-            <strong>Boundary Slot Conflicts:</strong>
-            <div v-for="(slot, idx) in getDayDebugInfo(day.date).debug.boundarySlots" :key="'boundary-'+idx">
-              <div 
-                v-if="hasAppointmentConflict(slot, getDayDebugInfo(day.date).debug.bookedAppointments, day.date)"
-                class="debug-item conflict">
-                {{ slot.time }} boundary slot conflicts with booked appointment!
-              </div>
+            <div class="debug-section">
+              <h5>Debug Info:</h5>
+              <pre>{{ day.debugInfo || 'No debug info' }}</pre>
             </div>
-          </div>
-          
-          <!-- If there's proper debug data, show it -->
-          <div v-if="getDayDebugInfo(day.date)?.debug" class="debug-section">
-            <strong>Detailed Debug:</strong>
-            <pre>{{ JSON.stringify(getDayDebugInfo(day.date).debug, null, 2) }}</pre>
-          </div>
-          
-          <!-- If there's no proper debug data, explain why -->
-          <div v-else class="debug-section">
-            <strong>Additional Debug:</strong>
-            <div class="debug-empty">
-              Detailed debug information not available
-            </div>
-          </div>
-          
-          <!-- Display booked appointments from debug data -->
-          <div v-if="getDayDebugInfo(day.date)?.debug?.bookedAppointments?.length > 0" class="debug-section">
-            <strong>Booked Appointments:</strong>
-            <div v-for="(appt, idx) in getDayDebugInfo(day.date).debug.bookedAppointments" :key="'appt-'+idx" 
-                 class="debug-appointment">
-              <div class="appointment-time">
-                <span class="time-badge booked">
-                  {{ formatTime(appt.swissStartTime) }} - {{ formatTime(appt.swissEndTime) }}
-                </span>
-                <span class="duration-badge">{{ appt.duration }}</span>
-              </div>
-              <div class="appointment-title">{{ appt.title }}</div>
-              <div v-if="appt.description" class="appointment-description">{{ appt.description }}</div>
-            </div>
-          </div>
-          <div v-else-if="getDayDebugInfo(day.date)?.debug" class="debug-section">
-            <strong>Booked Appointments:</strong>
-            <div class="debug-empty">No appointments booked for this day</div>
           </div>
         </div>
       </div>
@@ -676,7 +622,14 @@ export default {
           return {
             ...day,
             date: dayDate,
-            slots: day.slots || [] // Keep original slots if not a vacation day
+            slots: day.slots || [], // Keep original slots if not a vacation day
+            busyTimes: day.busyTimes || [],
+            debugInfo: {
+              date: day.date,
+              slotsCount: day.slots.length,
+              busyTimesCount: day.busyTimes?.length || 0,
+              timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+            }
           };
         })
         .filter(day => {
