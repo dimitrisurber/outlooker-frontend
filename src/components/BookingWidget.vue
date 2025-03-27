@@ -665,21 +665,53 @@ export default {
         // Calculate when this slot would end based on appointment duration
         const slotEndTimeInMinutes = slotTimeInMinutes + appointmentDuration.value;
         
-        // Don't allow slots that would end after 17:00 (1020 minutes)
-        const scheduleEndInMinutes = 17 * 60; // 17:00
-        if (slotEndTimeInMinutes > scheduleEndInMinutes) {
+        // Get the day's schedules from the debug info
+        const dayData = allDaysWithSlots.value.find(day => 
+          day.date === slot.time.split('T')[0]
+        );
+        
+        if (!dayData || !dayData.debug || !dayData.debug.schedules) {
+          console.warn('No schedule data found for day:', slot.time.split('T')[0]);
           return false;
         }
         
-        // If this slot ends exactly at the schedule end time, it's valid
-        if (slotEndTimeInMinutes === scheduleEndInMinutes) {
-          return true;
+        // Check if this slot falls within any of the day's schedules
+        const isValidTime = dayData.debug.schedules.some(schedule => {
+          const [scheduleStartHour, scheduleStartMinute] = schedule.start_time.split(':').map(Number);
+          const [scheduleEndHour, scheduleEndMinute] = schedule.end_time.split(':').map(Number);
+          
+          const scheduleStartInMinutes = scheduleStartHour * 60 + scheduleStartMinute;
+          const scheduleEndInMinutes = scheduleEndHour * 60 + scheduleEndMinute;
+          
+          // Log schedule times for debugging
+          console.log(`Checking slot ${currentTime} against schedule:`, {
+            schedule: `${schedule.start_time} - ${schedule.end_time}`,
+            slotStart: slotTimeInMinutes,
+            slotEnd: slotEndTimeInMinutes,
+            scheduleStart: scheduleStartInMinutes,
+            scheduleEnd: scheduleEndInMinutes
+          });
+          
+          // Slot must start within the schedule and end before or at the schedule end
+          const isValid = slotTimeInMinutes >= scheduleStartInMinutes && 
+                         slotEndTimeInMinutes <= scheduleEndInMinutes;
+          
+          if (isValid) {
+            console.log(`Slot ${currentTime} is valid within schedule ${schedule.start_time} - ${schedule.end_time}`);
+          }
+          
+          return isValid;
+        });
+        
+        if (!isValidTime) {
+          console.log(`Slot ${currentTime} is outside of all schedules`);
+          return false;
         }
         
-        // First slot in a block is always valid (if it doesn't exceed end time)
+        // First slot in a block is always valid (if it's within a schedule)
         if (index === 0) return true;
         
-        // Last slot in a block is always valid (if it doesn't exceed end time)
+        // Last slot in a block is always valid (if it's within a schedule)
         if (index === slots.length - 1) return true;
         
         // Get times of adjacent slots
@@ -690,8 +722,8 @@ export default {
         const minutesBefore = getMinutesDifference(prevTime, currentTime);
         const minutesAfter = getMinutesDifference(currentTime, nextTime);
         
-        // If either gap is more than 30 minutes, this slot is valid
-        return minutesBefore > 30 || minutesAfter > 30;
+        // If either gap is more than the appointment duration, this slot is valid
+        return minutesBefore > appointmentDuration.value || minutesAfter > appointmentDuration.value;
       });
     };
 
@@ -707,7 +739,18 @@ export default {
         const response = await fetch(
           `${apiBaseUrl}/availability/next-two-weeks?userId=${route.params.userId}&duration=${appointmentDuration.value}`
         );
+        const response2 = await fetch(
+          `${apiBaseUrl}/availability/month?userId=${route.params.userId}&duration=${appointmentDuration.value}`
+        );
         const data = await response.json();
+        const data2 = await response2.json();
+        console.log("Hitler");
+        if (data.success) {
+        console.log("Hitler", data2);
+        }
+        
+        
+        
         
         if (data.success) {
           days.value = data.days;
