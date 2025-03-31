@@ -689,19 +689,19 @@ export default {
         const today = new Date();
         const isToday = slotDate.toDateString() === today.toDateString();
 
-        // If it's today, check if the slot is at least 1 hour in the future
+        // If it's today, check if the slot is at least 3 hours in the future
         if (isToday) {
           const now = new Date();
           const currentHour = now.getHours();
           const currentMinute = now.getMinutes();
           const currentTimeInMinutes = currentHour * 60 + currentMinute;
           
-          // Add 1 hour (60 minutes) to current time
-          const minimumTimeInMinutes = currentTimeInMinutes + 60;
+          // Add 3 hours (180 minutes) to current time
+          const minimumTimeInMinutes = currentTimeInMinutes + 180;
           
           // If the slot starts before the minimum time, filter it out
           if (slotTimeInMinutes < minimumTimeInMinutes) {
-            console.log(`Filtering out slot ${currentTime} as it's less than 1 hour in the future`);
+            console.log(`Filtering out slot ${currentTime} as it's less than 3 hours in the future`);
             return false;
           }
         }
