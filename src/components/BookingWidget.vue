@@ -11,7 +11,7 @@
           class="service-tile"
           @click="selectService('rad', 30)"
         >
-          <h2>Rad wechseln</h2>
+          <h2>Räder wechseln</h2>
           <div class="service-duration">Dauer: 30 Minuten</div>
           <p class="service-description">
             Schneller und professioneller Radwechsel für Ihr Fahrzeug. Ideal für einzelne Räder oder wenn Sie bereits über die passenden Reifen verfügen.
@@ -424,6 +424,9 @@ export default {
       console.log('Time slot selected:', time, date);
       selectedTime.value = time;
       selectedDate.value = date;
+      
+      // Trigger booking_start event
+      window.parent.postMessage({ event: 'booking_start' }, '*');
       
       // Navigate to booking page immediately
       const userId = route.params.userId;

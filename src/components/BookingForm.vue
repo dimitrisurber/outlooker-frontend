@@ -411,6 +411,9 @@ export default {
         
         console.log('Booking successful:', response);
         
+        // Trigger booking_success event
+        window.parent.postMessage({ event: 'booking_success' }, '*');
+        
         // Redirect to confirmation page with details
         router.push({
           path: '/booking-confirmation',
