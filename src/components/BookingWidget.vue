@@ -425,8 +425,14 @@ export default {
       selectedTime.value = time;
       selectedDate.value = date;
       
-      // Trigger booking_start event
-      window.parent.postMessage({ event: 'booking_start' }, '*');
+      // Trigger booking_start event with Google Ads tracking
+      window.parent.postMessage({ 
+        event: 'booking_start',
+        googleAds: {
+          event: 'conversion',
+          send_to: 'AW-16946454602/K94kCLaEi7IaEMrA2ZA_'
+        }
+      }, '*');
       
       // Navigate to booking page immediately
       const userId = route.params.userId;
