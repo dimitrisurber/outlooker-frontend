@@ -244,6 +244,44 @@
           class="available-slots-section"
         />
       </div>
+
+      <!-- Booked Appointments Section -->
+      <div v-if="isCalendarConnected && bookings.length > 0" class="bookings-section">
+        <h3>Booked Appointments</h3>
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Time</th>
+                <th>Name</th>
+                <th>Phone</th>
+                <th>Service</th>
+                <th>Email</th>
+                <th>Notes</th>
+                <th>Car</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="booking in bookings" :key="booking.id">
+                <td>{{ formatDate(booking.appointment_date) }}</td>
+                <td>{{ booking.appointment_time }}</td>
+                <td>{{ booking.customer_name }}</td>
+                <td>{{ booking.customer_phone }}</td>
+                <td>{{ booking.service || 'N/A' }}</td>
+                <td>{{ booking.customer_email || 'N/A' }}</td>
+                <td>{{ booking.notes || 'N/A' }}</td>
+                <td>{{ formatCarInfo(booking) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div v-else-if="isCalendarConnected" class="bookings-section no-bookings">
+        <h3>Booked Appointments</h3>
+        <p>No bookings found.</p>
+      </div>
+      <!-- End Booked Appointments Section -->
     </main>
   </div>
 </template>
@@ -253,6 +291,7 @@ import { ref, onMounted, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { calendarAPI, authAPI } from '@/services/api';
 import AvailableSlots from '@/components/AvailableSlots.vue';
+import { format, parseISO } from 'date-fns';
 
 export default {
   name: 'DashboardView',
@@ -277,6 +316,8 @@ export default {
     const isConnected = ref(false);
     const calendarEmail = ref('');
     const vacationBlocks = ref([]);
+    const bookings = ref([]);
+    const isLoadingBookings = ref(false);
 
     const connectCalendar = async () => {
       try {
@@ -707,6 +748,7 @@ export default {
       vacationBlocks.value.push(createEmptyVacationBlock());
     };
 
+    // eslint-disable-next-line no-unused-vars
     const updateVacationBlock = async (index) => {
       try {
         const block = vacationBlocks.value[index];
@@ -739,6 +781,42 @@ export default {
       }
     };
 
+    const fetchBookings = async () => {
+      isLoadingBookings.value = true;
+      try {
+        console.log('Fetching bookings...');
+        const fetchedBookings = await calendarAPI.getBookings();
+        bookings.value = fetchedBookings || [];
+        console.log(`Fetched ${bookings.value.length} bookings.`);
+      } catch (err) {
+        console.error('Failed to fetch bookings:', err);
+        error.value = err.message || 'Failed to load bookings';
+        bookings.value = []; // Clear bookings on error
+      } finally {
+        isLoadingBookings.value = false;
+      }
+    };
+
+    const formatDate = (dateString) => {
+      if (!dateString) return 'N/A';
+      try {
+        // Assuming dateString is in YYYY-MM-DD format
+        return format(parseISO(dateString), 'dd MMM yyyy');
+      } catch (e) {
+        console.error('Error formatting date:', dateString, e);
+        return dateString; // Return original if formatting fails
+      }
+    };
+
+    const formatCarInfo = (booking) => {
+      if (!booking.car_manufacturer) return 'N/A';
+      let info = booking.car_manufacturer;
+      if (booking.car_year) {
+        info += ` (${booking.car_year})`;
+      }
+      return info;
+    };
+
     onMounted(async () => {
       // Set admin status
       const user = JSON.parse(localStorage.getItem('user'));
@@ -757,6 +835,7 @@ export default {
       if (isCalendarConnected.value) {
         await fetchSchedules();
         await fetchVacationBlocks();
+        await fetchBookings();
         // Check if Google Calendar API is available
         await checkGoogleCalendarStatus();
       }
@@ -798,7 +877,10 @@ export default {
       deleteVacationBlock,
       addNewVacationBlock,
       fetchVacationBlocks,
-      updateVacationBlock
+      bookings,
+      isLoadingBookings,
+      formatDate,
+      formatCarInfo
     };
   }
 };
@@ -1128,5 +1210,55 @@ export default {
 
 .save-button:hover:not(:disabled) {
   background-color: #218838;
+}
+
+.bookings-section {
+  flex: 0 0 100%; /* Take full width */
+  box-sizing: border-box;
+  background: white;
+  padding: 1.5rem;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  margin-top: 2rem; /* Add some space above */
+}
+
+.bookings-section h3 {
+  margin-bottom: 1rem;
+}
+
+.table-container {
+  overflow-x: auto; /* Allow horizontal scrolling on small screens */
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+th, td {
+  border: 1px solid #dee2e6;
+  padding: 0.75rem;
+  text-align: left;
+  vertical-align: top;
+  white-space: nowrap; /* Prevent text wrapping initially */
+}
+
+th {
+  background-color: #f8f9fa;
+  font-weight: 600;
+}
+
+tbody tr:nth-child(even) {
+  background-color: #f8f9fa;
+}
+
+/* Allow notes to wrap */
+td:nth-child(7) { 
+  white-space: normal;
+}
+
+.no-bookings p {
+  color: #6c757d;
 }
 </style> 

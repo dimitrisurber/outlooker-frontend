@@ -576,9 +576,7 @@ export const calendarAPI = {
       }
       
       console.log('Deleting vacation block:', blockId);
-      const response = await api.delete(`/calendar/vacation-blocks/${blockId}`, {
-        params: { userId: user.id }
-      });
+      const response = await api.delete(`/calendar/vacations/${blockId}`);
       console.log('Vacation block deleted:', response.data);
       return response.data;
     } catch (error) {
@@ -606,6 +604,20 @@ export const calendarAPI = {
       throw error;
     }
   },
+
+  // --- NEW: Get Booked Appointments ---
+  async getBookings() {
+    const response = await api.get('/calendar/bookings/list'); // Use the new endpoint
+    // Directly return the bookings array from the response data
+    if (response.data && response.data.success) {
+      return response.data.bookings || []; // Return bookings or empty array
+    } else {
+      // Handle cases where the API call wasn't successful or data format is wrong
+      console.error('Failed to get bookings or invalid response format:', response.data);
+      throw new Error(response.data?.error || 'Failed to fetch bookings');
+    }
+  }
+  // ----------------------------------
 };
 
 export const bookingAPI = {
