@@ -234,7 +234,7 @@
 
 <script>
 import { ref, onMounted, computed } from 'vue';
-import { format, addDays } from 'date-fns';
+import { format } from 'date-fns';
 import { calendarAPI } from '@/services/api';
 import { useRoute, useRouter } from 'vue-router';
 
@@ -419,69 +419,6 @@ export default {
       });
     };
 
-    // Helper function to check slot validity (for debugging)
-    const isSlotValid = (slot) => {
-      if (!slot || !slot.time) return false;
-      
-      try {
-        const timeString = slot.time.split('T')[1];
-        if (!timeString) return false;
-        
-        const [hours, minutes] = timeString.split(':').map(Number);
-        if (isNaN(hours) || isNaN(minutes)) return false;
-        
-        const slotDate = new Date(slot.time.split('T')[0]);
-        const today = new Date();
-        
-        if (slotDate.toDateString() === today.toDateString()) {
-          const currentHour = today.getHours();
-          const currentMinute = today.getMinutes();
-          const currentTimeInMinutes = currentHour * 60 + currentMinute;
-          const slotTimeInMinutes = hours * 60 + minutes;
-          
-          if (slotTimeInMinutes < currentTimeInMinutes + 180) {
-            return false;
-          }
-        }
-        
-        return true;
-      } catch (error) {
-        return false;
-      }
-    };
-    
-    // Helper function to get reason for slot invalidity (for debugging)
-    const getSlotInvalidReason = (slot) => {
-      if (!slot) return 'Slot is null or undefined';
-      if (!slot.time) return 'Slot has no time property';
-      
-      try {
-        const timeString = slot.time.split('T')[1];
-        if (!timeString) return 'Invalid time format - no T delimiter';
-        
-        const [hours, minutes] = timeString.split(':').map(Number);
-        if (isNaN(hours) || isNaN(minutes)) return 'Invalid hours/minutes format';
-        
-        const slotDate = new Date(slot.time.split('T')[0]);
-        const today = new Date();
-        
-        if (slotDate.toDateString() === today.toDateString()) {
-          const currentHour = today.getHours();
-          const currentMinute = today.getMinutes();
-          const currentTimeInMinutes = currentHour * 60 + currentMinute;
-          const slotTimeInMinutes = hours * 60 + minutes;
-          
-          if (slotTimeInMinutes < currentTimeInMinutes + 180) {
-            return `Too soon - current: ${currentHour}:${currentMinute}, slot: ${hours}:${minutes}`;
-          }
-        }
-        
-        return 'Valid';
-      } catch (error) {
-        return `Error: ${error.message}`;
-      }
-    };
-
     // Fetch all available slots
     const fetchAllAvailableSlots = async () => {
       try {
@@ -599,7 +536,9 @@ export default {
       appointmentDuration.value = 30;
       allDaysWithSlots.value = [];
       // Remove the service query parameter from URL (optional)
-      const { service, ...restQuery } = route.query;
+      // Disable eslint warning for intentionally unused variable
+      // eslint-disable-next-line no-unused-vars
+      const { service: _service, ...restQuery } = route.query; 
       router.replace({ query: restQuery });
     };
     
