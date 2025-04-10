@@ -20,7 +20,7 @@
           <span class="value">Reifen wechseln</span>
         </div>
         <div class="detail-item">
-          <span class="label">Ort:</span>
+          <span class="label">Ort: </span>
           <span class="value">Garage Wertli, Neunbrunnenstrasse 255, 8046 Zürich</span>
         </div>
       </div>

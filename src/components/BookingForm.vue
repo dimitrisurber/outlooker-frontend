@@ -8,10 +8,7 @@
       <h2>Termindetails</h2>
       <p><strong>Datum:</strong> {{ formatDate(appointmentDate) }}</p>
       <p><strong>Uhrzeit:</strong> {{ formatTime(appointmentTime) }}</p>
-      <div class="detail-item">
-          <span class="label">Ort:</span>
-          <span class="value">Garage Wertli, Neunbrunnenstrasse 255, 8046 Zürich</span>
-        </div>
+      <p><strong>Ort:</strong> Garage Wertli, Neunbrunnenstrasse 255, 8046 Zürich</p>
     </div>
 
     <div class="service-details" :class="{ 'error': !form.service }">
@@ -145,6 +142,7 @@ export default {
     vSelect
   },
   setup() {
+    
     const route = useRoute();
     const router = useRouter();
     
@@ -520,21 +518,39 @@ export default {
           if (!isNaN(dateObj.getTime())) {
             appointmentDate.value = dateObj;
             console.log('Appointment date set as Date object:', appointmentDate.value);
+            
+            // Ensure we have the date set in the form too
+            form.value.date = dateParam;
           } else {
             console.error('Invalid date from URL:', dateParam);
             appointmentDate.value = dateParam; // Keep the string version as fallback
+            form.value.date = dateParam;
           }
         } catch (error) {
           console.error('Error parsing date from URL:', error);
           appointmentDate.value = dateParam; // Keep the string version as fallback
+          form.value.date = dateParam;
         }
       } else {
         console.warn('No date parameter found in URL');
       }
       
+      // Set appointment time from route
       appointmentTime.value = route.query.time;
+      // Ensure we have the time set in the form too
+      form.value.time = route.query.time;
+      
+      // Set service from route
       form.value.service = route.query.service || '';
       console.log('Service from URL:', route.query.service);
+      
+      // Debug info
+      console.log('Booking form initialized with:', {
+        date: appointmentDate.value,
+        time: appointmentTime.value,
+        service: form.value.service,
+        userId: form.value.userId
+      });
       
       // Load reCAPTCHA
       loadRecaptchaScript().catch(error => {

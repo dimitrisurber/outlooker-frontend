@@ -390,7 +390,14 @@ export const calendarAPI = {
         params: { userId }
       });
       console.log('Calendar info response:', response.data);
-      return response.data;
+      
+      // Extract calendarInfo from response
+      if (response.data && response.data.success && response.data.calendarInfo) {
+        return response.data.calendarInfo;
+      } else {
+        console.error('Invalid calendar info response format:', response.data);
+        throw new Error('Invalid response format from calendar info API');
+      }
     } catch (error) {
       console.error('Get calendar info failed:', error);
       throw error;
@@ -418,7 +425,14 @@ export const calendarAPI = {
       const response = await api.get('/calendar/schedules', { 
         params: { userId } 
       });
-      return response.data;
+      
+      // Extract schedules array from response
+      if (response.data && response.data.success && Array.isArray(response.data.schedules)) {
+        return response.data.schedules;
+      } else {
+        console.error('Invalid schedules response format:', response.data);
+        throw new Error('Invalid response format from schedules API');
+      }
     } catch (error) {
       console.error('getSchedules error:', error);
       throw error;
@@ -506,9 +520,18 @@ export const calendarAPI = {
         }
       }
       
-      // Use the correct endpoint path
-      const response = await api.post('/calendar/bookings', bookingData);
-      return response.data;
+      // Use a direct fetch for public booking endpoint
+      const apiBaseUrl = process.env.VUE_APP_API_URL || '';
+      const response = await fetch(`${apiBaseUrl}/bookings`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(bookingData),
+      });
+      
+      const data = await response.json();
+      return data;
     } catch (error) {
       console.error('createBooking error:', error);
       throw error;
@@ -541,7 +564,16 @@ export const calendarAPI = {
         params: { userId }
       });
       console.log('Vacation blocks response:', response.data);
-      return response.data;
+      
+      // Extract vacationBlocks array from response
+      if (response.data && response.data.success && Array.isArray(response.data.vacationBlocks)) {
+        return {
+          vacationBlocks: response.data.vacationBlocks
+        };
+      } else {
+        console.error('Invalid vacation blocks response format:', response.data);
+        return { vacationBlocks: [] }; // Return empty array as fallback
+      }
     } catch (error) {
       console.error('getVacationBlocks error:', error);
       throw error;
@@ -576,7 +608,9 @@ export const calendarAPI = {
       }
       
       console.log('Deleting vacation block:', blockId);
-      const response = await api.delete(`/calendar/vacations/${blockId}`);
+      const response = await api.delete(`/calendar/vacation-blocks/${blockId}`, {
+        params: { userId: user.id }
+      });
       console.log('Vacation block deleted:', response.data);
       return response.data;
     } catch (error) {
@@ -623,7 +657,7 @@ export const calendarAPI = {
 export const bookingAPI = {
   getServices: () => api.get('/calendar/services'),
   getAvailability: (date) => api.get('/calendar/availability', { params: { date } }),
-  createBooking: (bookingData) => {
+  createBooking: async (bookingData) => {
     // Only check for token if reCAPTCHA is enabled
     const recaptchaEnabled = process.env.VUE_APP_RECAPTCHA_ENABLED !== 'false';
     
@@ -637,8 +671,18 @@ export const bookingAPI = {
       }
     }
     
-    // Use the correct endpoint path
-    return api.post('/calendar/bookings', bookingData);
+    // Use a direct fetch for public booking endpoint
+    const apiBaseUrl = process.env.VUE_APP_API_URL || '';
+    const response = await fetch(`${apiBaseUrl}/bookings`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(bookingData),
+    });
+    
+    const data = await response.json();
+    return data;
   },
   getBookingLink: (userId) => api.get(`/bookings/link/${userId}`)
 };

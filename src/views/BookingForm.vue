@@ -23,27 +23,32 @@ const submitForm = async () => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        name: form.value.name,
-        phone: form.value.phone,
-        date: form.value.date,
-        time: form.value.time,
         userId: form.value.userId,
-        carManufacturer: form.value.manufacturer,
-        carYear: form.value.year,
-        duration: form.value.duration,
-        service: form.value.service
+        appointmentDate: form.value.date,
+        appointmentTime: form.value.time,
+        customerDetails: {
+          name: form.value.name,
+          phone: form.value.phone,
+          carManufacturer: form.value.manufacturer,
+          carYear: form.value.year,
+          service: form.value.service
+        },
+        duration: form.value.duration
       }),
     });
 
     const data = await response.json();
     
     if (data.success) {
+      // Extract eventId from nested booking object if available
+      const eventId = data.booking?.eventId || data.eventId || 'pending';
       router.push({
         name: 'BookingSuccess',
         params: {
           ...form.value,
-          eventId: data.eventId,
-          duration: form.value.duration
+          eventId: eventId,
+          duration: form.value.duration,
+          status: data.booking?.status || 'synced'
         }
       });
     } else {

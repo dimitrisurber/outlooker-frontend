@@ -239,10 +239,7 @@
           </div>
         </div>
 
-        <AvailableSlots 
-          v-if="isCalendarConnected"
-          class="available-slots-section"
-        />
+
       </div>
 
       <!-- Booked Appointments Section -->
@@ -290,14 +287,10 @@
 import { ref, onMounted, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { calendarAPI, authAPI } from '@/services/api';
-import AvailableSlots from '@/components/AvailableSlots.vue';
 import { format, parseISO } from 'date-fns';
 
 export default {
   name: 'DashboardView',
-  components: {
-    AvailableSlots
-  },
   setup() {
     const router = useRouter();
     const route = useRoute();
@@ -431,46 +424,73 @@ export default {
         const user = JSON.parse(localStorage.getItem('user'));
         console.log('Fetching schedules for user:', user);
 
-        const fetchedSchedules = await calendarAPI.getSchedules(user.id);
-        console.log('Received schedules:', fetchedSchedules);
-        
-        schedules.value = fetchedSchedules.map(schedule => {
-          console.log('Processing schedule with days:', schedule.days);
-          // Normalize days to uppercase for comparison
-          const normalizedDays = schedule.days.map(day => day.toUpperCase());
-          return {
-            id: schedule.id,
-            mon: normalizedDays.includes('MON'),
-            tue: normalizedDays.includes('TUE'),
-            wed: normalizedDays.includes('WED'),
-            thu: normalizedDays.includes('THU'),
-            fri: normalizedDays.includes('FRI'),
-            sat: normalizedDays.includes('SAT'),
-            from: schedule.startTime,
-            to: schedule.endTime,
-            isSubmitting: false,
-            isModified: false
-          };
-        });
-
-        schedules.value.forEach((_, index) => {
-          watchScheduleChanges(index);
-        });
-      } catch (err) {
-        console.error('Failed to fetch schedules:', err);
-        
-        // Set specific message for network issues
-        if (err.message.includes('Network Error') || 
-            err.message.includes('timeout') ||
-            err.code === 'ECONNABORTED' ||
-            err.response?.status >= 500) {
-          error.value = 'Network connectivity issues. Unable to fetch schedules.';
+        try {
+          const fetchedSchedules = await calendarAPI.getSchedules(user.id);
+          console.log('Received schedules:', fetchedSchedules);
           
-          // Default empty schedules
-          schedules.value = [];
-        } else {
-          error.value = err.response?.data?.error || 'Failed to load schedules';
+          schedules.value = fetchedSchedules.map(schedule => {
+            console.log('Processing schedule with days:', schedule.days);
+            // Normalize days to uppercase for comparison
+            const normalizedDays = schedule.days.map(day => day.toUpperCase());
+            return {
+              id: schedule.id,
+              mon: normalizedDays.includes('MON'),
+              tue: normalizedDays.includes('TUE'),
+              wed: normalizedDays.includes('WED'),
+              thu: normalizedDays.includes('THU'),
+              fri: normalizedDays.includes('FRI'),
+              sat: normalizedDays.includes('SAT'),
+              from: schedule.startTime,
+              to: schedule.endTime,
+              isSubmitting: false,
+              isModified: false
+            };
+          });
+
+          schedules.value.forEach((_, index) => {
+            watchScheduleChanges(index);
+          });
+        } catch (scheduleError) {
+          console.error('Failed to fetch schedules:', scheduleError);
+          
+          // Initialize with default schedules if API is not available
+          if (scheduleError.message.includes('404')) {
+            console.log('Schedules API not available, using default schedules');
+            // Provide a default schedule
+            schedules.value = [
+              {
+                id: 'default1',
+                mon: true,
+                tue: true,
+                wed: true,
+                thu: true,
+                fri: true,
+                sat: false,
+                from: '09:00',
+                to: '17:00',
+                isSubmitting: false,
+                isModified: false
+              }
+            ];
+          } else {
+            // Set specific message for network issues
+            if (scheduleError.message.includes('Network Error') || 
+                scheduleError.message.includes('timeout') ||
+                scheduleError.code === 'ECONNABORTED' ||
+                scheduleError.response?.status >= 500) {
+              error.value = 'Network connectivity issues. Unable to fetch schedules.';
+            } else {
+              error.value = scheduleError.response?.data?.error || 'Failed to load schedules';
+            }
+            
+            // Default empty schedules
+            schedules.value = [];
+          }
         }
+      } catch (err) {
+        console.error('Unexpected error in fetchSchedules:', err);
+        error.value = err.message || 'An unexpected error occurred';
+        schedules.value = [];
       } finally {
         isLoading.value = false;
       }
@@ -582,10 +602,8 @@ export default {
         
         console.log('Google Calendar API status:', isAvailable);
         
-        // If calendar API is available again, refresh schedules
-        if (isAvailable.available) {
-          await fetchSchedules();
-        }
+        // Don't call fetchSchedules here - it's already called in onMounted
+        // and causes duplicate 404 errors when called here
       } catch (err) {
         console.error('Failed to check Google Calendar API status:', err);
         isGoogleCalendarAvailable.value = false;
@@ -612,25 +630,38 @@ export default {
           throw new Error('User not found');
         }
         
-        isCalendarConnected.value = await calendarAPI.checkConnectionStatus(user.id);
+        // Get connection status with fallback
+        try {
+          isCalendarConnected.value = await calendarAPI.checkConnectionStatus(user.id);
+        } catch (connectionError) {
+          console.error('Failed to check connection status:', connectionError);
+          error.value = 'Could not check calendar connection';
+          isCalendarConnected.value = false;
+        }
         
         if (isCalendarConnected.value) {
           try {
             const calendarInfo = await calendarAPI.getCalendarInfo(user.id);
-            if (calendarInfo && calendarInfo.email) {
-              calendarEmail.value = calendarInfo.email;
+            
+            // Safely extract email with fallback
+            if (calendarInfo) {
+              calendarEmail.value = calendarInfo.email || user.username || user.id || 'Unknown account';
             } else {
-              console.error('Calendar info missing email:', calendarInfo);
-              error.value = 'Could not retrieve calendar email';
+              console.error('Calendar info is undefined/null');
+              error.value = 'Could not retrieve calendar information';
+              calendarEmail.value = user.username || user.id || 'Unknown account';
             }
           } catch (infoError) {
             console.error('Failed to get calendar info:', infoError);
+            // Don't fail the whole component for this error
             error.value = 'Could not retrieve calendar information';
+            // Set a default value so the UI doesn't break
+            calendarEmail.value = user.username || user.id || 'Unknown account';
           }
         }
       } catch (err) {
         console.error('Failed to check calendar connection:', err);
-        error.value = err.message;
+        error.value = err.message || 'Failed to check calendar connection';
         isCalendarConnected.value = false;
       } finally {
         isLoading.value = false;
@@ -646,18 +677,54 @@ export default {
         
         console.log('Fetching vacation blocks');
         const response = await calendarAPI.getVacationBlocks(user.id);
-        vacationBlocks.value = response.blocks.map(block => ({
-          id: block.id,
-          startDate: block.start_date,
-          endDate: block.end_date,
-          description: block.description,
-          isSubmitting: false,
-          isModified: false
-        }));
+        
+        // Check for both property names (vacationBlocks or blocks) to make it resilient
+        const blocks = response.vacationBlocks || response.blocks || [];
+        console.log('Vacation blocks response transformed:', blocks);
+        
+        vacationBlocks.value = blocks.map(block => {
+          // Format dates to ensure YYYY-MM-DD format for date inputs
+          let startDate = block.startDate;
+          let endDate = block.endDate;
+          
+          // If dates are not in YYYY-MM-DD format, try to convert them
+          if (startDate && !startDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
+            try {
+              const date = new Date(startDate);
+              if (!isNaN(date.getTime())) {
+                startDate = date.toISOString().split('T')[0];
+              }
+            } catch (e) {
+              console.error('Error formatting startDate:', e);
+            }
+          }
+          
+          if (endDate && !endDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
+            try {
+              const date = new Date(endDate);
+              if (!isNaN(date.getTime())) {
+                endDate = date.toISOString().split('T')[0];
+              }
+            } catch (e) {
+              console.error('Error formatting endDate:', e);
+            }
+          }
+          
+          return {
+            id: block.id,
+            startDate: startDate,
+            endDate: endDate,
+            description: block.description || '',
+            isSubmitting: false,
+            isModified: false
+          };
+        });
         console.log('Fetched vacation blocks:', vacationBlocks.value);
       } catch (err) {
         console.error('Failed to fetch vacation blocks:', err);
         error.value = err.message || 'Failed to load vacation blocks';
+        // Initialize with empty array on error
+        vacationBlocks.value = [];
       }
     };
 
@@ -748,7 +815,6 @@ export default {
       vacationBlocks.value.push(createEmptyVacationBlock());
     };
 
-    // eslint-disable-next-line no-unused-vars
     const updateVacationBlock = async (index) => {
       try {
         const block = vacationBlocks.value[index];
@@ -785,12 +851,25 @@ export default {
       isLoadingBookings.value = true;
       try {
         console.log('Fetching bookings...');
-        const fetchedBookings = await calendarAPI.getBookings();
-        bookings.value = fetchedBookings || [];
-        console.log(`Fetched ${bookings.value.length} bookings.`);
+        try {
+          const fetchedBookings = await calendarAPI.getBookings();
+          bookings.value = fetchedBookings || [];
+          console.log(`Fetched ${bookings.value.length} bookings.`);
+        } catch (bookingError) {
+          console.error('Failed to fetch bookings:', bookingError);
+          
+          // Handle 404 case specially - API not implemented
+          if (bookingError.message.includes('404')) {
+            console.log('Bookings API not available');
+            bookings.value = []; // Empty array, not null
+          } else {
+            error.value = bookingError.message || 'Failed to load bookings';
+            bookings.value = []; // Clear bookings on error
+          }
+        }
       } catch (err) {
-        console.error('Failed to fetch bookings:', err);
-        error.value = err.message || 'Failed to load bookings';
+        console.error('Unexpected error in fetchBookings:', err);
+        error.value = err.message || 'An unexpected error occurred';
         bookings.value = []; // Clear bookings on error
       } finally {
         isLoadingBookings.value = false;
@@ -875,6 +954,7 @@ export default {
       isValidBlock,
       saveVacationBlock,
       deleteVacationBlock,
+      updateVacationBlock,
       addNewVacationBlock,
       fetchVacationBlocks,
       bookings,
