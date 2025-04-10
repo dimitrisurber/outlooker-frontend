@@ -362,20 +362,21 @@ export default {
           console.log('reCAPTCHA is disabled by configuration, continuing without token');
         }
         
-        // Ensure appointmentDate is a proper Date object
-        let formattedDate;
+        // Ensure appointmentDate is valid and get the YYYY-MM-DD string
+        let dateStringYYYYMMDD;
         if (appointmentDate.value) {
           const dateObj = (appointmentDate.value instanceof Date) 
             ? appointmentDate.value 
-            : new Date(appointmentDate.value);
+            : new Date(appointmentDate.value); // Still create Date object for validation
           
           if (isNaN(dateObj.getTime())) {
             console.error('Invalid date format:', appointmentDate.value);
             throw new Error('Ungültiges Datumsformat. Bitte wählen Sie ein gültiges Datum.');
           }
           
-          formattedDate = dateObj.toISOString();
-          console.log('Formatted appointment date:', formattedDate);
+          // Format to YYYY-MM-DD before sending
+          dateStringYYYYMMDD = format(dateObj, 'yyyy-MM-dd'); 
+          console.log('Formatted appointment date for API:', dateStringYYYYMMDD);
         } else {
           console.error('Missing appointment date');
           throw new Error('Bitte wählen Sie ein Datum für Ihren Termin.');
@@ -384,7 +385,7 @@ export default {
         // Prepare booking data
         const bookingData = {
           userId: route.params.userId,
-          appointmentDate: formattedDate,
+          appointmentDate: dateStringYYYYMMDD, // Send the YYYY-MM-DD string
           appointmentTime: appointmentTime.value,
           customerDetails: {
             name: form.value.name,
@@ -423,7 +424,7 @@ export default {
           path: '/booking-confirmation',
           query: {
             name: form.value.name,
-            date: formattedDate,
+            date: dateStringYYYYMMDD,
             time: appointmentTime.value,
             manufacturer: form.value.manufacturer,
             year: form.value.year,
